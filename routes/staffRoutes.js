@@ -7,6 +7,7 @@ const authStaff = require("../middleware/staffAuth");
 const jwt = require("jsonwebtoken");
 const upload = require("../middleware/upload");
 const bcrypt = require("bcrypt");
+const Loan = require("../models/Loan");
 //const sendSMS = require('../utils/sendSMS');
 //const sendEmail = require('../utils/sendEmail');
 
@@ -151,7 +152,7 @@ router.post("/collect-payment", authStaff, async (req, res) => {
 // Get assigned clients
 router.get("/assigned-clients", authStaff, async (req, res) => {
   try {
-    const clients = await Client.find({ staffId: req.staff._id }).sort({
+    const clients = await Client.find({ staffId: req.staffId }).sort({
       fullName: 1,
     });
     res.json(clients);
@@ -160,10 +161,6 @@ router.get("/assigned-clients", authStaff, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
-
-
-
 
 router.get("/collections-summary", authStaff, async (req, res) => {
   console.log("Staff ID from token:", req.staff._id); // ✅ Correct log
@@ -300,5 +297,62 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ message: "Login failed", error: err.message });
   }
 });
+
+// GET /api/staff/loans
+router.get("/staff/loans", authStaff, async (req, res) => {
+  try {
+    const loans = await Loan.find({
+      staffId: req.staffId,
+      status: "pending"
+    })
+      .populate("clientId", "fullName phone address")
+      .sort({ createdAt: -1 });
+
+    res.json(loans);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch staff loans" });
+  }
+});
+
+// POST /api/staff/loans/:loanId/review
+router.post("/staff/loans/:loanId/review", authStaff, async (req, res) => {
+  try {
+    const { decision, note } = req.body;
+
+    if (!["approved", "rejected"].includes(decision)) {
+      return res.status(400).json({ message: "Invalid decision" });
+    }
+
+    const loan = await Loan.findOne({
+      _id: req.params.loanId,
+      staffId: req.staffId
+    });
+
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    if (loan.staffReview?.decision !== "pending") {
+      return res.status(400).json({ message: "Loan already reviewed" });
+    }
+
+    loan.staffReview = {
+      decision,
+      note,
+      reviewedAt: new Date()
+    };
+
+    await loan.save();
+
+    res.json({
+      message: "Staff review submitted. Await admin decision."
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to submit review" });
+  }
+});
+
 
 module.exports = router;

@@ -294,6 +294,26 @@ router.post("/withdraw", verifyJWT, async (req, res) => {
   res.send(`✅ ₦${amount} will be sent to your account within 24 hours.`);
 });
 
+// routes/client.js
+router.get("/profile", verifyJWT, async (req, res) => {
+  try {
+    const client = await Client.findById(req.clientId).select(
+      "fullName phone email address"
+    );
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    res.json(client);
+  } catch (err) {
+    console.error("PROFILE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
 /*
 // Get payments by client ID
 router.get('/payments/:clientId', async (req, res) => {

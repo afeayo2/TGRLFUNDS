@@ -184,6 +184,17 @@ router.delete("/staff/:id", authAdmin, async (req, res) => {
   }
 });
 
+// GET all staff (for assignment dropdown)
+router.get("/staff", authAdmin, async (req, res) => {
+  try {
+    const staff = await Staff.find({}, "fullName phone");
+    res.json(staff);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 // ========================
 // 5. TRANSACTIONS
 // ========================

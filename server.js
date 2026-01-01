@@ -20,14 +20,30 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log('MongoDB error:', err));
 
 
+const allowedOrigins = [
+  "http://127.0.0.1:5500",
+  //"http://127.0.0.1:5500",
+  "https://laughing-space-halibut-x5pq54vxrgw5cv6r4-3000.app.github.dev",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+    //credentials: true,
+  })
+);
 
 
-app.use(cors({
-  origin: 'http://127.0.0.1:5500',
-  credentials: false, 
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'] 
-}));
+
 
 
 
@@ -45,9 +61,10 @@ app.use(session({
   cookie: {
     secure: false, // Set to true if using HTTPS
     httpOnly: true,
-    sameSite: 'none' // or 'none' if using HTTPS and cross-origin
+    sameSite: 'lax' // or 'none' if using HTTPS and cross-origin
   }
 }));
+
 
 
 // Flash Messages
@@ -81,7 +98,7 @@ const adminLoans = require('./routes/adminLoans')
 
 
 //app.use('/', authRoutes);
-app.use('/', clientRoutes);
+app.use('/client', clientRoutes);
 app.use('/staff', staffRoutes);
 app.use('/admin', adminRoutes);
 app.use('/withdrawal',adminWithdrawals );
