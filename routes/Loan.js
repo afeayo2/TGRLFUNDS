@@ -5,6 +5,7 @@ const axios = require("axios");
 const Loan = require("../models/Loan");
 const Client = require("../models/Client");
 const verifyJWT = require("../middleware/verifyJWT");
+const LoanPayment = require("../models/LoanPayment");
 
 const DOJAH_API_KEY = process.env.DOJAH_API_KEY;
 const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
@@ -187,6 +188,7 @@ router.post("/request", verifyJWT, async (req, res) => {
         totalRepayment,
         duration: `${totalWeeks} weeks`,
         nextRepayment,
+        requestedAmount: amount,
         dueDate,
         installments,
         creditScore,
@@ -228,6 +230,7 @@ router.post("/confirm", verifyJWT, async (req, res) => {
       dueDate,
       creditScore,
       riskClass,
+      requestedAmount,
       externalVerified
     } = req.body;
 
@@ -242,6 +245,7 @@ router.post("/confirm", verifyJWT, async (req, res) => {
       dueDate,
       creditScore,
       riskClass,
+      requestedAmount,
       externalVerified,
 
       staffReview: {
@@ -269,32 +273,160 @@ router.post("/confirm", verifyJWT, async (req, res) => {
  */
 router.get("/status", verifyJWT, async (req, res) => {
   try {
-    const activeLoan = await Loan.findOne({
+    const loan = await Loan.findOne({
       clientId: req.clientId,
-      status: { $in: ["pending", "approved", "unpaid"] },
+      status: { $in: ["approved", "active"] }
     }).sort({ createdAt: -1 });
 
-    if (!activeLoan) {
-      return res.json({
-        activeLoan: null,
-        message: "No active loan found.",
-      });
+    if (!loan) {
+      return res.json({ activeLoan: null });
     }
+
+    const installments = loan.installments || [];
+    const nextInstallment = installments.find(
+      inst => inst.status === "unpaid"
+    );
 
     res.json({
       activeLoan: {
-        status: activeLoan.status,
-        amount: activeLoan.amount,
-        approvedAmount: activeLoan.approvedAmount,
-        totalRepayment: activeLoan.totalRepayment,
-        dueDate: activeLoan.dueDate,
-        createdAt: activeLoan.createdAt,
-      },
+        _id: loan._id,
+        totalRepayment: loan.totalRepayment,
+        approvedAmount: loan.approvedAmount,
+        durationInMonths: loan.durationInMonths,
+        status: loan.status,
+
+        // ✅ FIX
+        installments,
+        nextInstallment,
+
+        totalInstallments: installments.length,
+        paidInstallments: installments.filter(i => i.status === "paid").length
+      }
     });
   } catch (err) {
-    console.error("Loan status error:", err);
-    res.status(500).json({ message: "Failed to fetch loan status." });
+    res.status(500).json({ message: "Failed to fetch loan status" });
   }
 });
+
+
+
+router.post("/pay/card/initiate", verifyJWT, async (req, res) => {
+  try {
+    const client = await Client.findById(req.clientId);
+
+    const loan = await Loan.findOne({
+      clientId: req.clientId,
+      status: { $in: ["approved", "active"] }
+    });
+
+    if (!loan) {
+      return res.status(404).json({ message: "No active loan" });
+    }
+
+    const installment = loan.installments.find(i => i.status === "unpaid");
+    if (!installment) {
+      return res.json({ message: "All installments paid" });
+    }
+
+    const payment = await LoanPayment.create({
+      loanId: loan._id,
+      clientId: client._id,
+      amount: installment.amount,
+      installmentWeek: installment.week,
+      method: "card",
+      paidBy: "client"
+    });
+
+    const paystackRes = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        email: client.email || `${client.phone}@pacesave.com`,
+        amount: installment.amount * 100,
+        reference: payment._id.toString(),
+        callback_url: `${process.env.BASE_URL}/loan/pay/card/verify`
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
+        }
+      }
+    );
+
+    res.json({
+      authorization_url: paystackRes.data.data.authorization_url
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Payment initiation failed" });
+  }
+});
+
+
+
+router.get("/pay/card/verify", async (req, res) => {
+  try {
+    const reference = req.query.reference || req.query.trxref;
+
+    if (!reference) {
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    }
+
+    // 1️⃣ Verify with Paystack
+    const verify = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
+        }
+      }
+    );
+
+    if (verify.data.data.status !== "success") {
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    }
+
+    // 2️⃣ Fetch payment using reference
+    const payment = await LoanPayment.findById(reference);
+    if (!payment) {
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    }
+
+    // 3️⃣ Fetch loan
+    const loan = await Loan.findById(payment.loanId);
+    if (!loan) {
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+    }
+
+    // 4️⃣ Mark installment as paid
+    const installment = loan.installments.find(
+      i => i.week === payment.installmentWeek
+    );
+
+    if (installment && installment.status !== "paid") {
+      installment.status = "paid";
+      installment.paidAt = new Date();
+    }
+
+    // 5️⃣ Update loan status
+    loan.status = loan.installments.every(i => i.status === "paid")
+      ? "paid"
+      : "active";
+
+    payment.status = "success";
+    payment.reference = reference;
+
+    await loan.save();
+    await payment.save();
+
+    return res.redirect(`${process.env.FRONTEND_URL}/payment-success.html`);
+
+  } catch (err) {
+    console.error("Verify error:", err);
+    return res.redirect(`${process.env.FRONTEND_URL}/payment-failed.html`);
+  }
+});
+
+
 
 module.exports = router;

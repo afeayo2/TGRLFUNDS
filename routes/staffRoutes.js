@@ -8,6 +8,8 @@ const jwt = require("jsonwebtoken");
 const upload = require("../middleware/upload");
 const bcrypt = require("bcrypt");
 const Loan = require("../models/Loan");
+const mongoose = require("mongoose");
+
 //const sendSMS = require('../utils/sendSMS');
 //const sendEmail = require('../utils/sendEmail');
 
@@ -123,7 +125,7 @@ router.post("/collect-payment", authStaff, async (req, res) => {
 
     const payment = new Payment({
       clientId,
-      staffId: req.staff._id,
+      staffId: req.staffId, // ✅
       amount,
       method: "cash",
       reference: `CASH-${Date.now()}`,
@@ -163,11 +165,10 @@ router.get("/assigned-clients", authStaff, async (req, res) => {
 });
 
 router.get("/collections-summary", authStaff, async (req, res) => {
-  console.log("Staff ID from token:", req.staff._id); // ✅ Correct log
-
   try {
-    const now = new Date();
+    const staffObjectId = new mongoose.Types.ObjectId(req.staffId);
 
+    const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -176,44 +177,29 @@ router.get("/collections-summary", authStaff, async (req, res) => {
       Payment.aggregate([
         {
           $match: {
-            staffId: req.staff._id, // ✅ FIXED
+            staffId: staffObjectId,
             createdAt: { $gte: startOfDay }
           }
         },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$amount" }
-          }
-        }
+        { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
       Payment.aggregate([
         {
           $match: {
-            staffId: req.staff._id, // ✅ FIXED
+            staffId: staffObjectId,
             createdAt: { $gte: startOfWeek }
           }
         },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$amount" }
-          }
-        }
+        { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
       Payment.aggregate([
         {
           $match: {
-            staffId: req.staff._id, // ✅ FIXED
+            staffId: staffObjectId,
             createdAt: { $gte: startOfMonth }
           }
         },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$amount" }
-          }
-        }
+        { $group: { _id: null, total: { $sum: "$amount" } } }
       ])
     ]);
 
@@ -230,10 +216,11 @@ router.get("/collections-summary", authStaff, async (req, res) => {
 
 
 
+
 // Get onboarded clients (track by date)
 router.get("/onboarded-clients", authStaff, async (req, res) => {
   try {
-    const clients = await Client.find({ onboardedBy: req.staff._id }).sort({
+    const clients = await Client.find({ onboardedBy: req.staffId}).sort({
       onboardedAt: -1,
     });
     res.json(clients);
@@ -289,23 +276,30 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.json({
-      token,
-      staff: { id: staff._id, fullName: staff.fullName, phone },
-    });
+   res.json({
+  token,
+  staff: {
+    id: staff._id,
+    fullName: staff.fullName,
+    phone
+  }
+});
+
   } catch (err) {
     res.status(500).json({ message: "Login failed", error: err.message });
   }
 });
 
 // GET /api/staff/loans
-router.get("/staff/loans", authStaff, async (req, res) => {
+router.get("/loans", authStaff, async (req, res) => {
   try {
+    const staffId = new mongoose.Types.ObjectId(req.staffId);
+
     const loans = await Loan.find({
-      staffId: req.staffId,
-      status: "pending"
+      staffId,
+      status: { $ne: "paid" } // 👈 KEY CHANGE
     })
-      .populate("clientId", "fullName phone address")
+      .populate("clientId", "fullName phone")
       .sort({ createdAt: -1 });
 
     res.json(loans);
@@ -315,8 +309,9 @@ router.get("/staff/loans", authStaff, async (req, res) => {
   }
 });
 
+
 // POST /api/staff/loans/:loanId/review
-router.post("/staff/loans/:loanId/review", authStaff, async (req, res) => {
+router.post("/loans/:loanId/review", authStaff, async (req, res) => {
   try {
     const { decision, note } = req.body;
 
@@ -351,6 +346,215 @@ router.post("/staff/loans/:loanId/review", authStaff, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to submit review" });
+  }
+});
+
+
+router.post(
+  "/loan/:loanId/pay/cash",
+  authStaff,
+  async (req, res) => {
+    const { loanId } = req.params;
+
+    const loan = await Loan.findById(loanId);
+    if (!loan) return res.status(404).json({ message: "Loan not found" });
+
+    const installment = loan.installments.find(i => i.status === "unpaid");
+    if (!installment)
+      return res.status(400).json({ message: "No unpaid installment" });
+
+    installment.status = "paid";
+    installment.paidAt = new Date();
+
+    loan.payments.push({
+      amount: installment.amount,
+      method: "cash",
+      installmentWeek: installment.week,
+      staffId: req.staffId,
+      paidBy: "staff",
+      reference: `CASH-${Date.now()}`
+    });
+
+    if (loan.installments.every(i => i.status === "paid")) {
+      loan.status = "paid";
+    }
+
+    await loan.save();
+
+    res.json({
+      message: "Cash payment recorded successfully",
+      installment
+    });
+  }
+);
+
+
+// GET /api/staff/loan-schedule
+router.get("/loan-schedule", authStaff, async (req, res) => {
+  try {
+    const staffId = new mongoose.Types.ObjectId(req.staffId);
+
+    const loans = await Loan.find({
+      staffId,
+      status: { $ne: "paid" }
+    }).populate("clientId", "fullName phone");
+
+    const schedule = [];
+
+    loans.forEach(loan => {
+      loan.installments
+        .filter(i => i.status === "unpaid")
+        .forEach(i => {
+          schedule.push({
+            loanId: loan._id,
+            clientName: loan.clientId.fullName,
+            phone: loan.clientId.phone,
+            week: i.week,
+            amount: i.amount,
+            dueDate: i.dueDate,
+            day: i.day
+          });
+        });
+    });
+
+    res.json(schedule);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load schedule" });
+  }
+});
+
+// GET /api/staff/loan-schedule/filter?range=today|week|month
+router.get("/loan-schedule/filter", authStaff, async (req, res) => {
+  const { range } = req.query;
+
+  const now = new Date();
+  let endDate = new Date(now);
+
+  if (range === "today") endDate.setHours(23,59,59,999);
+  if (range === "week") endDate.setDate(now.getDate() + 7);
+  if (range === "month") endDate.setMonth(now.getMonth() + 1);
+
+  const loans = await Loan.find({
+    staffId: req.staffId,
+    status: { $ne: "paid" }
+  }).populate("clientId", "fullName phone");
+
+  const due = [];
+
+  loans.forEach(loan => {
+    loan.installments.forEach(i => {
+      if (
+        i.status === "unpaid" &&
+        new Date(i.dueDate) <= endDate
+      ) {
+        due.push({
+          client: loan.clientId.fullName,
+          phone: loan.clientId.phone,
+          amount: i.amount,
+          dueDate: i.dueDate
+        });
+      }
+    });
+  });
+
+  res.json(due);
+});
+
+
+// GET /api/staff/loan-defaulters
+router.get("/loan-defaulters", authStaff, async (req, res) => {
+  try {
+    const today = new Date();
+
+    const loans = await Loan.find({
+      staffId: req.staffId,
+      status: { $ne: "paid" }
+    }).populate("clientId", "fullName phone");
+
+    const defaulters = [];
+
+    loans.forEach(loan => {
+      loan.installments.forEach(i => {
+        if (
+          i.status === "unpaid" &&
+          new Date(i.dueDate) < today
+        ) {
+          defaulters.push({
+            loanId: loan._id,
+            client: loan.clientId.fullName,
+            phone: loan.clientId.phone,
+            amount: i.amount,
+            dueDate: i.dueDate,
+            week: i.week
+          });
+        }
+      });
+    });
+
+    res.json(defaulters);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch defaulters" });
+  }
+});
+
+
+
+router.get("/installments-due", authStaff, async (req, res) => {
+  try {
+    const staffId = req.staff._id;
+    const today = new Date();
+
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+
+    const startOfMonth = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      1
+    );
+
+    const loans = await Loan.find({
+      staffId,
+      status: { $in: ["active", "unpaid"] }
+    });
+
+    let todayDue = 0;
+    let weekDue = 0;
+    let monthDue = 0;
+
+    loans.forEach(loan => {
+      loan.installments.forEach(inst => {
+        if (inst.status !== "unpaid") return;
+
+        const due = new Date(inst.dueDate);
+
+        if (due >= startOfToday && due <= endOfToday) {
+          todayDue += inst.amount;
+        }
+
+        if (due >= startOfWeek) {
+          weekDue += inst.amount;
+        }
+
+        if (due >= startOfMonth) {
+          monthDue += inst.amount;
+        }
+      });
+    });
+
+    res.json({
+      todayDue,
+      weekDue,
+      monthDue
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load installment dues" });
   }
 });
 

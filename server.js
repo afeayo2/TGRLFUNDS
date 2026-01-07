@@ -93,6 +93,7 @@ const staffRoutes = require('./routes/staffRoutes')
 const adminRoutes = require('./routes/adminRoutes')
 const Loan = require('./routes/Loan')
 const adminLoans = require('./routes/adminLoans')
+const adminStaffAnalytics= require('./routes/adminStaffAnalytics')
 
 
 
@@ -104,6 +105,7 @@ app.use('/admin', adminRoutes);
 app.use('/withdrawal',adminWithdrawals );
 app.use('/loan',Loan );
 app.use('/adminloan',adminLoans );
+app.use('/adminAnalis',adminStaffAnalytics );
 
 
 

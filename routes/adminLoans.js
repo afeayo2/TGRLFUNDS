@@ -4,11 +4,16 @@ const Loan = require("../models/Loan");
 const Client = require("../models/Client");
 const authAdmin = require("../middleware/authAdmin");
 
-// ✅ 1. Get all pending loan requests
+/**
+ * =========================
+ * 1. GET PENDING LOANS
+ * =========================
+ */
 router.get("/pending", authAdmin, async (req, res) => {
   try {
     const pendingLoans = await Loan.find({ status: "pending" })
       .populate("clientId", "fullName phone email balance")
+      .populate("staffId", "fullName phone")
       .sort({ createdAt: -1 });
 
     res.json(pendingLoans);
@@ -18,101 +23,159 @@ router.get("/pending", authAdmin, async (req, res) => {
   }
 });
 
-// ✅ 2. Get single loan details (with credit info + client worthiness)
+/**
+ * =========================
+ * 2. GET SINGLE LOAN DETAILS
+ * =========================
+ */
 router.get("/:loanId", authAdmin, async (req, res) => {
   try {
-    const { loanId } = req.params;
-    const loan = await Loan.findById(loanId).populate("clientId", "fullName phone email balance onboardedAt withdrawals");
+    const loan = await Loan.findById(req.params.loanId)
+      .populate("clientId", "fullName phone email balance onboardedAt withdrawals")
+      .populate("staffId", "fullName phone");
 
     if (!loan) return res.status(404).json({ message: "Loan not found" });
 
     const client = loan.clientId;
 
-    // 🧠 Compute client’s saving behavior (for insight)
     const withdrawalCount = client.withdrawals?.length || 0;
     const totalSavings = client.balance || 0;
-    const savingsBehavior = totalSavings / (withdrawalCount + 1);
 
     const worthiness = {
-      accountAgeMonths: Math.floor((new Date() - new Date(client.onboardedAt)) / (1000 * 60 * 60 * 24 * 30)),
+      accountAgeMonths: Math.floor(
+        (Date.now() - new Date(client.onboardedAt)) / (1000 * 60 * 60 * 24 * 30)
+      ),
       totalSavings,
       withdrawalCount,
-      savingsBehavior,
+      savingsBehavior: totalSavings / (withdrawalCount + 1),
       creditScore: loan.creditScore,
-      riskClass: loan.riskClass,
+      riskClass: loan.riskClass
     };
 
-    res.json({ loan, worthiness });
+    res.json({
+      loan,
+      staffReview: loan.staffReview || { decision: "pending", note: null },
+      worthiness
+    });
   } catch (err) {
     console.error("Error fetching loan details:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ✅ 3. Approve a loan
+/**
+ * =========================
+ * 3. APPROVE LOAN
+ * =========================
+ */
 router.post("/:loanId/approve", authAdmin, async (req, res) => {
   try {
-    const { loanId } = req.params;
-    const loan = await Loan.findById(loanId).populate("clientId");
+    const loan = await Loan.findById(req.params.loanId);
 
-    if (!loan) return res.status(404).json({ message: "Loan not found" });
-    if (loan.status !== "pending") return res.status(400).json({ message: "Loan is not pending" });
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
 
+    if (loan.status !== "pending") {
+      return res.status(400).json({
+        message: `Loan already ${loan.status}`
+      });
+    }
+
+    // 🔥 ADMIN HAS FINAL SAY — NO STAFF CHECK
     loan.status = "approved";
+    loan.approvedAt = new Date();
+    loan.adminNote = req.body?.note || "Approved by admin";
+
     await loan.save();
 
-    res.json({ message: "Loan approved successfully", loan });
+// ✅ CREDIT CLIENT BALANCE
+await Client.findByIdAndUpdate(
+  loan.clientId,
+  { $inc: { balance: loan.approvedAmount } }
+);
+
+
+    res.json({
+      message: "Loan approved by admin",
+      loan
+    });
   } catch (err) {
     console.error("Error approving loan:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ✅ 4. Reject a loan
+/**
+ * =========================
+ * 4. REJECT LOAN
+ * =========================
+ */
 router.post("/:loanId/reject", authAdmin, async (req, res) => {
   try {
-    const { loanId } = req.params;
-    const loan = await Loan.findById(loanId).populate("clientId");
+    const loan = await Loan.findById(req.params.loanId);
 
-    if (!loan) return res.status(404).json({ message: "Loan not found" });
-    if (loan.status !== "pending") return res.status(400).json({ message: "Loan is not pending" });
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    if (loan.status !== "pending") {
+      return res.status(400).json({
+        message: `Loan already ${loan.status}`
+      });
+    }
 
     loan.status = "rejected";
+    loan.adminNote = req.body?.note || "Rejected by admin";
+
     await loan.save();
 
-    res.json({ message: "Loan rejected successfully", loan });
+    res.json({
+      message: "Loan rejected by admin",
+      loan
+    });
   } catch (err) {
     console.error("Error rejecting loan:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ✅ 5. Mark a loan as repaid
-router.post("/:loanId/mark-repaid", authAdmin, async (req, res) => {
+/**
+ * =========================
+ * 5. MARK LOAN AS PAID
+ * =========================
+ */
+router.post("/:loanId/mark-paid", authAdmin, async (req, res) => {
   try {
-    const { loanId } = req.params;
-    const loan = await Loan.findById(loanId);
+    const loan = await Loan.findById(req.params.loanId);
 
     if (!loan) return res.status(404).json({ message: "Loan not found" });
-    if (loan.status !== "approved") return res.status(400).json({ message: "Only approved loans can be marked repaid" });
+    if (loan.status !== "approved") {
+      return res.status(400).json({
+        message: "Only approved loans can be marked as paid"
+      });
+    }
 
-    loan.status = "repaid";
+    loan.status = "paid";
     await loan.save();
 
-    res.json({ message: "Loan marked as repaid successfully", loan });
+    res.json({ message: "Loan marked as paid successfully", loan });
   } catch (err) {
-    console.error("Error marking loan as repaid:", err);
+    console.error("Error marking loan as paid:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-
-
-// ✅ 0. Get ALL loans (for admin dashboard)
+/**
+ * =========================
+ * 6. GET ALL LOANS
+ * =========================
+ */
 router.get("/", authAdmin, async (req, res) => {
   try {
     const loans = await Loan.find()
       .populate("clientId", "fullName phone email")
+      .populate("staffId", "fullName phone")
       .sort({ createdAt: -1 });
 
     res.json(loans);
@@ -121,6 +184,7 @@ router.get("/", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 module.exports = router;

@@ -12,7 +12,7 @@ function authenticateStaff(req, res, next) {
       return res.status(403).json({ message: 'Access forbidden: staff only' });
     }
 
-    req.staffId = decoded.id; // Add staffId to request
+    req.staffId = decoded.id;  // Add staffId to request
     req.staff = decoded;      // Also keep whole staff payload
     next();
   } catch (err) {

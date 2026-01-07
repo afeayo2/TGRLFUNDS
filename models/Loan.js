@@ -1,5 +1,21 @@
 const mongoose = require("mongoose");
 
+const installmentSchema = new mongoose.Schema({
+  week: Number,
+  amount: Number,
+  dueDate: Date,
+  day: String,
+  status: {
+    type: String,
+    enum: ["paid", "unpaid"],
+    default: "unpaid"
+  },
+  paidAt: Date
+});
+
+
+
+
 const loanSchema = new mongoose.Schema(
   {
     /* ================= CLIENT & STAFF ================= */
@@ -36,6 +52,7 @@ const loanSchema = new mongoose.Schema(
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH"]
     },
+    installments: [installmentSchema], // ✅ REQUIRED
 
     externalVerified: Boolean,
     bvnUsed: String,
@@ -56,14 +73,40 @@ const loanSchema = new mongoose.Schema(
       },
       reviewedAt: Date
     },
-
     /* ================= ADMIN FINAL DECISION ================= */
     adminNote: String,
     approvedAt: Date,
-
-    status: {
+    adminId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Admin"
+},
+payments: [
+  {
+    amount: Number,
+    method: {
       type: String,
-      enum: ["pending", "approved", "rejected", "paid"],
+      enum: ["card", "cash"]
+    },
+    installmentWeek: Number,
+    staffId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Staff"
+    },
+    paidBy: {
+      type: String,
+      enum: ["client", "staff"]
+    },
+    reference: String,
+    paidAt: {
+      type: Date,
+      default: Date.now
+    }
+  }
+],
+
+ status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "paid", "active"],
       default: "pending"
     }
   },
