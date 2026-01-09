@@ -1,9 +1,39 @@
-const jwt = require("jsonwebtoken");
+//const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin"); 
+
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
+
+function authAdmin(req, res, next) {
+  // ✅ Accept token from header OR query (for exports)
+  const token =
+    req.headers.authorization?.split(" ")[1] ||
+    req.query.token;
+
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    req.adminId = decoded.adminId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+module.exports = authAdmin;
+
 
 // middleware/authAdmin.js
 //const jwt = require("jsonwebtoken");
-require("dotenv").config();
+/*require("dotenv").config();
 
 function authAdmin(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -19,9 +49,11 @@ function authAdmin(req, res, next) {
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
-}
+}*/
 
 module.exports = authAdmin;
+
+
 
 
 

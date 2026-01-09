@@ -23,6 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   //"http://127.0.0.1:5500",
+  "https://trustgoldethrift.onrender.com",
   "https://laughing-space-halibut-x5pq54vxrgw5cv6r4-3000.app.github.dev",
 ];
 
