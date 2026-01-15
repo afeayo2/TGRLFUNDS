@@ -275,7 +275,7 @@ router.get("/status", verifyJWT, async (req, res) => {
   try {
     const loan = await Loan.findOne({
       clientId: req.clientId,
-      status: { $in: ["approved", "active"] }
+      status: { $in: ["pending","approved", "active"] }
     }).sort({ createdAt: -1 });
 
     if (!loan) {
