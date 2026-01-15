@@ -46,8 +46,8 @@ router.post(
         },
         idType: body.idType,
         idNumber: body.idNumber,
-        passportUrl: files.passportPhoto?.[0]?.path || "",
-        faceUrl: files.faceCapture?.[0]?.path || "",
+     passportUrl: files.passportPhoto?.[0]?.secure_url || "",
+faceUrl: files.faceCapture?.[0]?.secure_url || "",
         bvn: body.bvn,
         savings: {
           type: body.savingsType,
@@ -137,25 +137,21 @@ router.get("/dashboard/:id", verifyJWT, async (req, res) => {
   }
 });
 
-
-
-
 // POST: Make online payment (simplified)
 router.post("/pay", verifyJWT, async (req, res) => {
-  const { clientId, amount, email } = req.body;
+  const { amount, email } = req.body;
 
-  const client = await Client.findById(clientId);
+  const client = await Client.findById(req.clientId);
   if (!client) return res.status(404).send("Client not found");
 
-  // Initialize transaction
   try {
     const paystackRes = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email,
-        amount: parseFloat(amount) * 100,
-        metadata: { clientId },
-        callback_url: `https://golden-funds.onrender.com/verify-payment`, // or your production URL
+        amount: Number(amount) * 100,
+        metadata: { clientId: client._id },
+        callback_url: "https://golden-funds.onrender.com/verify-payment",
       },
       {
         headers: {
@@ -165,49 +161,13 @@ router.post("/pay", verifyJWT, async (req, res) => {
       }
     );
 
-    const authorizationUrl = paystackRes.data.data.authorization_url;
-    res.json({ url: authorizationUrl });
+    res.json({ url: paystackRes.data.data.authorization_url });
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).send("Payment initialization failed");
   }
 });
 
-// Paystack webhook to verify payment
-router.post("/paystack/webhook", async (req, res) => {
-  const secret = PAYSTACK_SECRET_KEY;
-  const crypto = require("crypto");
-
-  const hash = crypto
-    .createHmac("sha512", secret)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
-
-  if (hash !== req.headers["x-paystack-signature"]) {
-    return res.status(400).send("Invalid signature");
-  }
-
-  const event = req.body;
-  if (event.event === "charge.success") {
-    const reference = event.data.reference;
-    const amount = event.data.amount / 100;
-    const email = event.data.customer.email;
-    const metadata = event.data.metadata;
-
-    const client = await Client.findById(metadata.clientId);
-    if (client) {
-      client.balance += amount;
-      client.Payment.push({
-        amount,
-        method: "Paystack",
-        reference,
-      });
-      await client.save();
-    }
-  }
-
-  res.sendStatus(200);
-});
 
 // Get client info (used for payment email)
 router.get("/client/:id", verifyJWT, async (req, res) => {
