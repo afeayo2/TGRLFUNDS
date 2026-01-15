@@ -126,6 +126,7 @@ router.get("/dashboard/:id", verifyJWT, async (req, res) => {
       balance: client.balance,
       payments,
       withdrawals,
+      faceUrl: client.faceUrl || "",
     };
 
     //console.log("Dashboard response:", responseData);
