@@ -154,7 +154,7 @@ router.post("/pay", verifyJWT, async (req, res) => {
         email,
         amount: parseFloat(amount) * 100,
         metadata: { clientId },
-        callback_url: `http://localhost:3000/verify-payment`, // or your production URL
+        callback_url: `https://golden-funds.onrender.com/verify-payment`, // or your production URL
       },
       {
         headers: {
@@ -262,7 +262,7 @@ router.get("/verify-payment", async (req, res) => {
     }
 
     // Redirect to dashboard
-    res.redirect(`http://127.0.0.1:5500/dashboard.html`);
+    res.redirect(`https://trustgoldethrift.onrender.com/dashboard.html`);
   } catch (err) {
     console.error("Verification failed:", err.response?.data || err.message);
     res.status(500).send("Payment verification failed");
