@@ -15,31 +15,21 @@ const app = express();
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB error:', err));
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.log('MongoDB error:', err));
+} else {
+  console.log('Warning: MONGO_URI not set. Database features will not work.');
+}
 
-
-const allowedOrigins = [
-  "http://127.0.0.1:5500",
-  //"http://127.0.0.1:5500",
-  "https://trustgoldethrift.onrender.com",
-  "https://laughing-space-halibut-x5pq54vxrgw5cv6r4-3000.app.github.dev",
-];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: false
-    //credentials: true,
+    origin: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
   })
 );
 
@@ -54,17 +44,22 @@ app.use(express.json());
 
 
 
-app.use(session({
-  secret: 'yourSecretKey',
+const sessionConfig = {
+  secret: process.env.SESSION_SECRET || 'yourSecretKey',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
   cookie: {
-    secure: false, // Set to true if using HTTPS
+    secure: false,
     httpOnly: true,
-    sameSite: 'lax' // or 'none' if using HTTPS and cross-origin
+    sameSite: 'lax'
   }
-}));
+};
+
+if (process.env.MONGO_URI) {
+  sessionConfig.store = MongoStore.create({ mongoUrl: process.env.MONGO_URI });
+}
+
+app.use(session(sessionConfig));
 
 
 
@@ -117,7 +112,7 @@ app.use((req, res) => {
 });
 
 // Start Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`PaceSave server running on http://localhost:${PORT}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`PaceSave server running on http://0.0.0.0:${PORT}`);
 });
