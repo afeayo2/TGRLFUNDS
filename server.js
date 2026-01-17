@@ -96,9 +96,6 @@ const frontdesk = require("./routes/frontdesk");
 
 
 
-
-
-
 //app.use('/', authRoutes);
 app.use('/client', clientRoutes);
 app.use('/staff', staffRoutes);
