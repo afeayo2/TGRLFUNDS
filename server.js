@@ -89,7 +89,12 @@ const staffRoutes = require('./routes/staffRoutes')
 const adminRoutes = require('./routes/adminRoutes')
 const Loan = require('./routes/Loan')
 const adminLoans = require('./routes/adminLoans')
-const adminStaffAnalytics= require('./routes/adminStaffAnalytics')
+const adminStaffAnalytics= require('./routes/adminStaffAnalytics')  
+const ictAdminRoutes = require("./routes/ictAdmin");
+const frontdesk = require("./routes/frontdesk");
+
+
+
 
 
 
@@ -102,13 +107,16 @@ app.use('/withdrawal',adminWithdrawals );
 app.use('/loan',Loan );
 app.use('/adminloan',adminLoans );
 app.use('/adminAnalis',adminStaffAnalytics );
+app.use("/ict", ictAdminRoutes);
+app.use("/frontdesk", frontdesk);
+
 
 
 
 
 // 404 Page
 app.use((req, res) => {
-  res.status(404).send('404 - Page Not Found');
+  res.status(404).send('404 - Page Not Found but ');
 });
 
 // Start Server
