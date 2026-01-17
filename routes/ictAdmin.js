@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const router = express.Router();
 const authICT = require("../middleware/authICT");
 const Client = require("../models/Client");
