@@ -9,6 +9,9 @@ const axios = require("axios");
 const Loan = require("../models/Loan");
 const Inventory = require("../models/Inventory");
 const ICTStaff = require("../models/ICTStaff");
+const LoanPayment = require("../models/LoanPayment");
+const Payment = require("../models/Payment");
+
 
 
 /**
@@ -170,7 +173,10 @@ router.post("/add", authICT, async (req, res) => {
  * VIEW ALL ASSETS
  */
 router.get("/", authICT, async (req, res) => {
-  const assets = await Inventory.find().sort({ createdAt: -1 });
+  const assets = await Inventory.find()
+    .populate("assignedToId", "fullName")
+    .sort({ createdAt: -1 });
+
   res.json(assets);
 });
 
@@ -199,55 +205,80 @@ router.post("/:id/assign", authICT, async (req, res) => {
  * STAFF DAILY / WEEKLY / MONTHLY REPORT
  */
 router.get("/performance", authICT, async (req, res) => {
-  const { period } = req.query; // daily | weekly | monthly | yearly
+  try {
+    const { period } = req.query; // daily | weekly | monthly | yearly
+    let startDate = new Date();
 
-  let startDate = new Date();
+    if (period === "daily") startDate.setHours(0, 0, 0, 0);
+    if (period === "weekly") startDate.setDate(startDate.getDate() - 7);
+    if (period === "monthly") startDate.setMonth(startDate.getMonth() - 1);
+    if (period === "yearly") startDate.setFullYear(startDate.getFullYear() - 1);
 
-  if (period === "daily") startDate.setHours(0, 0, 0, 0);
-  if (period === "weekly") startDate.setDate(startDate.getDate() - 7);
-  if (period === "monthly") startDate.setMonth(startDate.getMonth() - 1);
-  if (period === "yearly") startDate.setFullYear(startDate.getFullYear() - 1);
+    // 1️⃣ Client onboarding per staff
+    const onboarded = await Client.aggregate([
+      { $match: { createdAt: { $gte: startDate }, staffId: { $ne: null } } },
+      { $group: { _id: "$staffId", totalClients: { $sum: 1 } } }
+    ]);
 
-  const onboarded = await Client.aggregate([
-    { $match: { createdAt: { $gte: startDate } } },
-    {
-      $group: {
-        _id: "$staffId",
-        totalClients: { $sum: 1 }
-      }
-    }
-  ]);
+    // 2️⃣ Loan payments collected per staff
+    const loanPayments = await LoanPayment.aggregate([
+      { $match: { createdAt: { $gte: startDate }, status: "success", staffId: { $ne: null } } },
+      { $group: { _id: "$staffId", loanCollected: { $sum: "$amount" } } }
+    ]);
 
-  const payments = await LoanPayment.aggregate([
-    { $match: { createdAt: { $gte: startDate }, status: "success" } },
-    {
-      $group: {
-        _id: "$staffId",
-        totalCollected: { $sum: "$amount" }
-      }
-    }
-  ]);
+    // 3️⃣ Other payments collected (Ajo / cash) per staff
+    const otherPayments = await Payment.aggregate([
+      { $match: { createdAt: { $gte: startDate }, staffId: { $ne: null } } },
+      { $group: { _id: "$staffId", otherCollected: { $sum: "$amount" } } }
+    ]);
 
-  res.json({ onboarded, payments });
-});
+    // 4️⃣ Loans disbursed per staff
+    const loans = await Loan.aggregate([
+      { $match: { createdAt: { $gte: startDate }, staffId: { $ne: null } } },
+      { $group: { _id: "$staffId", totalLoans: { $sum: 1 }, totalLoanAmount: { $sum: "$amount" } } }
+    ]);
 
+    // Merge data by staffId
+    const staffPerformance = {};
 
-router.get("/payments", authICT, async (req, res) => {
-  const { from, to } = req.query;
+    onboarded.forEach(o => {
+      staffPerformance[o._id] = { staffId: o._id, totalClients: o.totalClients, totalCollected: 0, loanCollected: 0, otherCollected: 0, totalLoans: 0, totalLoanAmount: 0 };
+    });
 
-  const payments = await LoanPayment.find({
-    createdAt: {
-      $gte: new Date(from),
-      $lte: new Date(to)
-    },
-    status: "success"
-  });
+    loanPayments.forEach(p => {
+      if (!staffPerformance[p._id]) staffPerformance[p._id] = { staffId: p._id, totalClients: 0, totalCollected: 0, loanCollected: 0, otherCollected: 0, totalLoans: 0, totalLoanAmount: 0 };
+      staffPerformance[p._id].loanCollected = p.loanCollected;
+    });
 
-  res.json({
-    totalAmount: payments.reduce((a, b) => a + b.amount, 0),
-    count: payments.length,
-    payments
-  });
+    otherPayments.forEach(p => {
+      if (!staffPerformance[p._id]) staffPerformance[p._id] = { staffId: p._id, totalClients: 0, totalCollected: 0, loanCollected: 0, otherCollected: 0, totalLoans: 0, totalLoanAmount: 0 };
+      staffPerformance[p._id].otherCollected = p.otherCollected;
+    });
+
+    loans.forEach(l => {
+      if (!staffPerformance[l._id]) staffPerformance[l._id] = { staffId: l._id, totalClients: 0, totalCollected: 0, loanCollected: 0, otherCollected: 0, totalLoans: 0, totalLoanAmount: 0 };
+      staffPerformance[l._id].totalLoans = l.totalLoans;
+      staffPerformance[l._id].totalLoanAmount = l.totalLoanAmount;
+    });
+
+    // Calculate totalCollected = loan + other
+    Object.values(staffPerformance).forEach(s => {
+      s.totalCollected = (s.loanCollected || 0) + (s.otherCollected || 0);
+    });
+
+    // Attach staff names
+    const staffIds = Object.keys(staffPerformance);
+    const staffDocs = await Staff.find({ _id: { $in: staffIds } }).select("fullName");
+
+    staffDocs.forEach(s => {
+      if (staffPerformance[s._id]) staffPerformance[s._id].staffName = s.fullName;
+    });
+
+    res.json({ performance: Object.values(staffPerformance) });
+  } catch (err) {
+    console.error("Performance error:", err);
+    res.status(500).json({ message: "Performance error" });
+  }
 });
 
 /**
@@ -275,6 +306,7 @@ router.get("/export", authICT, async (req, res) => {
     payments
   });
 });
+
 
 
 
@@ -306,6 +338,12 @@ router.post("/register", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+
+
+
+
+
 
 /**
  * =========================

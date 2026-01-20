@@ -17,7 +17,7 @@ const inventorySchema = new mongoose.Schema(
 
     assignedToType: {
       type: String,
-      enum: ["staff", "client", "none"],
+      enum: ["Staff", "Client", "none"],
       default: "none"
     },
 
@@ -25,6 +25,7 @@ const inventorySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       refPath: "assignedToType"
     },
+
 
     condition: {
       type: String,
