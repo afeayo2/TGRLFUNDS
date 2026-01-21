@@ -122,18 +122,14 @@ router.post("/add", authICT, async (req, res) => {
  * VIEW ALL INVENTORY ASSETS
  * =========================
  */
-router.get("/", authICT, async (req, res) => {
-  try {
-    const assets = await Inventory.find()
-      .populate("assignedToId", "fullName") // Ensure ref is "Staff"
-      .sort({ createdAt: -1 });
+/** * VIEW ALL ASSETS */ 
+router.get("/", authICT, async (req, res) =>{ 
+  const assets = await Inventory.find().sort(
+    { createdAt: -1 }); res.json(assets); });
+     /**
 
-    res.json(assets);
-  } catch (err) {
-    console.error("Fetch assets error:", err);
-    res.status(500).json({ message: "Error fetching assets" });
-  }
-});
+ * =========================
+
 
 /**
  * =========================

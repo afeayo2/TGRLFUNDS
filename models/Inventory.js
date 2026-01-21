@@ -15,9 +15,9 @@ const inventorySchema = new mongoose.Schema(
     simNumber: String,
     network: String,
 
-    assignedToType: {
+    assignedToType: {   
       type: String,
-      enum: ["Staff", "Client", "none"],
+      enum: ["staff", "client", "none"],
       default: "none"
     },
 
