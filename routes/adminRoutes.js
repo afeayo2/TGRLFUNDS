@@ -8,6 +8,7 @@ const Admin = require("../models/Admin");
 const Client = require("../models/Client");
 const Staff = require("../models/Staff");
 const Payment = require("../models/Payment");
+const LoanPayment = require("../models/LoanPayment");
 
 
 
@@ -81,11 +82,34 @@ router.get("/staff-reports", authAdmin, async (req, res) => {
     const staffList = await Staff.find().lean();
 
     const report = await Promise.all(staffList.map(async staff => {
-      const collectedAgg = await Payment.aggregate([
-        { $match: { staffId: staff._id, ...(startDate && { createdAt: { $gte: startDate } }) } },
+      // 1️⃣ Savings / Ajo collections
+      const savingsAgg = await Payment.aggregate([
+        {
+          $match: {
+            staffId: staff._id,
+            ...(startDate && { createdAt: { $gte: startDate } })
+          }
+        },
         { $group: { _id: null, total: { $sum: "$amount" } } }
       ]);
-      const totalCollected = collectedAgg[0]?.total || 0;
+      const savingsCollected = savingsAgg[0]?.total || 0;
+
+      // 2️⃣ Loan repayments
+      const loanAgg = await LoanPayment.aggregate([
+        {
+          $match: {
+            staffId: staff._id,
+            status: "success",
+            ...(startDate && { createdAt: { $gte: startDate } })
+          }
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ]);
+      const loanCollected = loanAgg[0]?.total || 0;
+
+      // 3️⃣ Final total
+      const totalCollected = savingsCollected + loanCollected;
+
 
       const onboardedCount = await Client.countDocuments({
         onboardedBy: staff._id,
@@ -95,9 +119,12 @@ router.get("/staff-reports", authAdmin, async (req, res) => {
       return {
         staffId: staff._id,
         fullName: staff.fullName,
+        savingsCollected,
+        loanCollected,
         totalCollected,
         clientsOnboarded: onboardedCount
       };
+
     }));
 
     res.json(report);
@@ -264,6 +291,7 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 // Admin Registration

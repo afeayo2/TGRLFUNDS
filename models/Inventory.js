@@ -15,18 +15,16 @@ const inventorySchema = new mongoose.Schema(
     simNumber: String,
     network: String,
 
-    assignedToType: {   
-      type: String,
-      enum: ["staff", "client", "none"],
-      default: "none"
-    },
+   assignedToType: {
+  type: String,
+  enum: ["Staff", "Client", "None"],
+  default: "None"
+},
 
-    assignedToId: {
-      type: mongoose.Schema.Types.ObjectId,
-      refPath: "assignedToType"
-    },
-
-
+assignedToId: {
+  type: mongoose.Schema.Types.ObjectId,
+  refPath: "assignedToType"
+},
     condition: {
       type: String,
       enum: ["active", "faulty", "lost", "damaged", "retired"],
