@@ -7,7 +7,6 @@ const staffSchema = new mongoose.Schema({
   email: { type: String, unique: true, sparse: true },
   password: { type: String, required: true },
   role: { type: String, default: 'staff' }, // helps with JWT checks
-  onboardedClients: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Client' }]
 }, { timestamps: true });
 
 // Hash password before saving

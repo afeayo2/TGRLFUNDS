@@ -68,6 +68,99 @@ router.get("/overview", authAdmin, async (req, res) => {
 // ========================
 // 2. STAFF REPORTS
 // ========================
+
+router.get("/staff-reports", authAdmin, async (req, res) => {
+  try {
+    const { period } = req.query;
+    const now = new Date();
+    let startDate;
+
+    if (period === "daily")
+      startDate = new Date(now.setHours(0,0,0,0));
+    else if (period === "weekly")
+      startDate = new Date(now.setDate(now.getDate() - now.getDay()));
+    else if (period === "monthly")
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (period === "yearly")
+      startDate = new Date(now.getFullYear(), 0, 1);
+
+    const staffList = await Staff.find().lean();
+
+    const report = await Promise.all(
+      staffList.map(async staff => {
+
+        // Savings collections
+        const savings = await Payment.aggregate([
+          {
+            $match: {
+              staffId: staff._id,
+              ...(startDate && { createdAt: { $gte: startDate } })
+            }
+          },
+          { $group: { _id: null, total: { $sum: "$amount" } } }
+        ]);
+
+        // Loan repayments
+        const loans = await LoanPayment.aggregate([
+          {
+            $match: {
+              staffId: staff._id,
+              status: "success",
+              ...(startDate && { createdAt: { $gte: startDate } })
+            }
+          },
+          { $group: { _id: null, total: { $sum: "$amount" } } }
+        ]);
+
+        // Clients onboarded
+        const onboarded = await Client.countDocuments({
+          onboardedBy: staff._id,
+          ...(startDate && { onboardedAt: { $gte: startDate } })
+        });
+
+        return {
+          staffId: staff._id,
+          fullName: staff.fullName,
+          savingsCollected: savings[0]?.total || 0,
+          loanCollected: loans[0]?.total || 0,
+          totalCollected:
+            (savings[0]?.total || 0) + (loans[0]?.total || 0),
+          clientsOnboarded: onboarded
+        };
+      })
+    );
+
+    res.json(report);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/staff/:id/report", authAdmin, async (req, res) => {
+  try {
+    const staffId = req.params.id;
+
+    const clients = await Client.find({ onboardedBy: staffId })
+      .select("fullName phone onboardedAt");
+
+    const payments = await Payment.find({ staffId })
+      .populate("clientId", "fullName phone");
+
+    const loanPayments = await LoanPayment.find({ staffId });
+
+    res.json({
+      clientsOnboarded: clients,
+      savingsPayments: payments,
+      loanPayments
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+/*
 router.get("/staff-reports", authAdmin, async (req, res) => {
   try {
     const { period } = req.query;
@@ -133,7 +226,7 @@ router.get("/staff-reports", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
+*/
 // ========================
 // 3. CLIENT MANAGEMENT
 // ========================
