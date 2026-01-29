@@ -26,20 +26,21 @@ router.get("/me", authStaff, async (req, res) => {
 
 router.post(
   "/add-client",
+  authStaff, // 🔒 VERY IMPORTANT
   upload.fields([
     { name: "passportPhoto", maxCount: 1 },
     { name: "faceCapture", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
-      // Uploaded file URLs
-      const passportUrl = req.files.passportPhoto?.[0]?.path;
-      const faceUrl = req.files.faceCapture?.[0]?.path;
+      // Uploaded file URLs (Cloudinary)
+      const passportUrl = req.files?.passportPhoto?.[0]?.secure_url;
+      const faceUrl = req.files?.faceCapture?.[0]?.secure_url;
 
       if (!passportUrl || !faceUrl) {
         return res
           .status(400)
-          .json({ message: "Passport or Face photo is missing" });
+          .json({ message: "Passport or face photo is missing" });
       }
 
       const {
@@ -58,11 +59,17 @@ router.post(
         bvn,
       } = req.body;
 
+      // Check duplicate
       const existingClient = await Client.findOne({ phone });
       if (existingClient) {
         return res.status(409).json({ message: "Client already exists" });
       }
-     const hashedPassword = await bcrypt.hash(password, 10); 
+
+      // Hash password ONLY if provided
+      let hashedPassword = null;
+      if (password) {
+        hashedPassword = await bcrypt.hash(password, 10);
+      }
 
       const newClient = new Client({
         fullName,
@@ -72,30 +79,37 @@ router.post(
         dateOfBirth,
         gender,
         maritalStatus,
-        nextOfKin: JSON.parse(nextOfKin), // JSON string
-        savings: JSON.parse(savings), // JSON string
-        address: JSON.parse(address), // JSON string
+        nextOfKin: nextOfKin ? JSON.parse(nextOfKin) : {},
+        savings: savings ? JSON.parse(savings) : {},
+        address: address ? JSON.parse(address) : {},
         idType,
         idNumber,
         passportUrl,
         faceUrl,
         bvn,
+
+        // 🔥 STAFF TRACKING (THIS MAKES ADMIN REPORTS WORK)
         staffId: req.staffId,
         onboardedBy: req.staffId,
-
         onboardedAt: new Date(),
       });
 
       await newClient.save();
-      res.status(201).json({ message: "Client added successfully" });
+
+      res.status(201).json({
+        message: "Client added successfully",
+        clientId: newClient._id,
+      });
     } catch (err) {
-      console.warn(err);
-      res
-        .status(500)
-        .json({ message: "Error adding client", error: err.message });
+      console.error("ADD CLIENT ERROR:", err);
+      res.status(500).json({
+        message: "Error adding client",
+        error: err.message,
+      });
     }
   }
 );
+
 
 /*
     await newClient.save();

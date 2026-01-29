@@ -12,6 +12,7 @@ const Payment = require("../models/Payment");
 // Register new client
 router.post(
   "/register-client",
+  verifyJWT,
   upload.fields([
     { name: "passportPhoto", maxCount: 1 },
     { name: "faceCapture", maxCount: 1 },
@@ -20,11 +21,12 @@ router.post(
     try {
       const { body, files } = req;
 
+      // 🔐 Staff info from token
+      const staffId = req.user.id;
+
       const existingClient = await Client.findOne({ phone: body.phone });
       if (existingClient) {
-        return res
-          .status(409)
-          .send("Client with this phone number already exists.");
+        return res.status(409).send("Client already exists.");
       }
 
       const hashedPassword = await bcrypt.hash(body.password, 10);
@@ -37,6 +39,11 @@ router.post(
         phone: body.phone,
         email: body.email,
         password: hashedPassword,
+
+        staffId: staffId,          // ✅ assigned staff
+        onboardedBy: staffId,      // ✅ who onboarded
+        onboardedAt: new Date(),
+
         address: {
           street: body.street,
           city: body.city,
@@ -44,11 +51,13 @@ router.post(
           state: body.state,
           landmark: body.landmark,
         },
+
         idType: body.idType,
         idNumber: body.idNumber,
-     passportUrl: files.passportPhoto?.[0]?.secure_url || "",
-faceUrl: files.faceCapture?.[0]?.secure_url || "",
+        passportUrl: files.passportPhoto?.[0]?.secure_url || "",
+        faceUrl: files.faceCapture?.[0]?.secure_url || "",
         bvn: body.bvn,
+
         savings: {
           type: body.savingsType,
           days: body.collectionDays,
@@ -56,6 +65,7 @@ faceUrl: files.faceCapture?.[0]?.secure_url || "",
           duration: body.duration,
           method: body.collectionMethod,
         },
+
         nextOfKin: {
           fullName: body.kinFullName,
           relationship: body.kinRelationship,
@@ -65,10 +75,16 @@ faceUrl: files.faceCapture?.[0]?.secure_url || "",
       });
 
       await newClient.save();
-      res.status(201).send("Client registered successfully!");
+
+      // Optional but good
+      await Staff.findByIdAndUpdate(staffId, {
+        $push: { onboardedClients: newClient._id }
+      });
+
+      res.status(201).send("Client registered successfully");
     } catch (err) {
       console.error(err);
-      res.status(500).send("Server error while registering client.");
+      res.status(500).send("Server error");
     }
   }
 );
