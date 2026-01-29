@@ -25,7 +25,7 @@ router.get("/me", authStaff, async (req, res) => {
 });
 
 router.post(
-  "/add-client",
+  "/add-client",authStaff,
   upload.fields([
     { name: "passportPhoto", maxCount: 1 },
     { name: "faceCapture", maxCount: 1 },
