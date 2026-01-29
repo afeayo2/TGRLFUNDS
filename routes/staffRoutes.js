@@ -221,6 +221,42 @@ router.get("/collections-summary", authStaff, async (req, res) => {
 });
 
 
+// GET /api/staff/payments
+router.get("/payments", authStaff, async (req, res) => {
+  try {
+    const payments = await Payment.find({ staffId: req.staffId })
+      .populate("clientId", "fullName phone")
+      .populate("staffId", "fullName phone")
+      .sort({ createdAt: -1 });
+
+    res.json(payments);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load payments" });
+  }
+});
+
+
+router.get("/daily-activity", authStaff, async (req, res) => {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const [clients, payments] = await Promise.all([
+    Client.countDocuments({
+      onboardedBy: req.staffId,
+      onboardedAt: { $gte: today }
+    }),
+    Payment.countDocuments({
+      staffId: req.staffId,
+      createdAt: { $gte: today }
+    })
+  ]);
+
+  res.json({
+    clientsOnboardedToday: clients,
+    paymentsCollectedToday: payments
+  });
+});
 
 
 // Get onboarded clients (track by date)
