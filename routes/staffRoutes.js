@@ -391,7 +391,7 @@ router.post("/loans/:loanId/review", authStaff, async (req, res) => {
   }
 });
 
-
+/*
 router.post(
   "/loan/:loanId/pay/cash",
   authStaff,
@@ -429,6 +429,66 @@ router.post(
     });
   }
 );
+*/
+
+router.post(
+  "/loan/:loanId/pay/cash",
+  authStaff,
+  async (req, res) => {
+    try {
+      const { loanId } = req.params;
+
+      const loan = await Loan.findById(loanId).populate("clientId");
+      if (!loan) return res.status(404).json({ message: "Loan not found" });
+
+      const installment = loan.installments.find(i => i.status === "unpaid");
+      if (!installment) {
+        return res.status(400).json({ message: "No unpaid installment" });
+      }
+
+      // ✅ Mark installment paid
+      installment.status = "paid";
+      installment.paidAt = new Date();
+
+      // ✅ Save inside loan (history)
+      loan.payments.push({
+        amount: installment.amount,
+        method: "cash",
+        installmentWeek: installment.week,
+        staffId: req.staffId,
+        paidBy: "staff",
+        reference: `LOAN-CASH-${Date.now()}`
+      });
+
+      // ✅ ALSO save to Payment collection (THIS WAS MISSING)
+      await Payment.create({
+        clientId: loan.clientId._id,
+        staffId: req.staffId,
+        amount: installment.amount,
+        method: "loan-cash",
+        reference: `LOAN-CASH-${Date.now()}`,
+        loanId: loan._id
+      });
+
+      // ✅ Close loan if fully paid
+      if (loan.installments.every(i => i.status === "paid")) {
+        loan.status = "paid";
+      }
+
+      await loan.save();
+
+      res.json({
+        message: "Loan cash payment recorded successfully",
+        installment
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to record loan payment" });
+    }
+  }
+);
+
 
 
 // GET /api/staff/loan-schedule
