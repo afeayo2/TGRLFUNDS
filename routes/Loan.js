@@ -134,7 +134,7 @@ router.post("/request", verifyJWT, async (req, res) => {
      */
     const eligibleAmount = Math.min(amount, (creditScore / 900) * 500000);
 
-    const interestRate = 0.06; // 6% monthly
+    const interestRate = 0.08; // 8% monthly
     const totalInterest = eligibleAmount * interestRate * months;
     const totalRepayment = Math.round(eligibleAmount + totalInterest);
 
@@ -182,7 +182,7 @@ router.post("/request", verifyJWT, async (req, res) => {
       message: "Loan offer available",
       preview: {
         approvedAmount: Math.round(eligibleAmount),
-        interestRate: 6,
+        interestRate: 8,
         repaymentType: "weekly",
         weeklyInstallment: weeklyBase,
         totalRepayment,
