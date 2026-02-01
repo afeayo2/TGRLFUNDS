@@ -139,7 +139,8 @@ router.post("/collect-payment", authStaff, async (req, res) => {
 
     await payment.save();
 
-    client.balance += amount;
+    client.balance = Number(client.balance) + Number(amount);
+
     await client.save();
 
     // Notify client
