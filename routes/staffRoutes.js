@@ -569,17 +569,32 @@ router.get("/loan-schedule", authStaff, async (req, res) => {
     const { range = "today" } = req.query;
     const staffId = new mongoose.Types.ObjectId(req.staffId);
 
-    const now = new Date();
-    const startOfToday = new Date(now.setHours(0,0,0,0));
-    const endOfToday = new Date(now.setHours(23,59,59,999));
+    // ---- DATE RANGE FIX (NO MUTATION) ----
+    const today = new Date();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
 
     let endDate = endOfToday;
-    if (range === "week") endDate = new Date(Date.now() + 7 * 86400000);
-    if (range === "month") endDate = new Date(Date.now() + 30 * 86400000);
 
+    if (range === "week") {
+      endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    if (range === "month") {
+      endDate = new Date();
+      endDate.setDate(endDate.getDate() + 30);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    // ---- SAFE QUERY (NO SYSTEM BREAK) ----
     const loans = await Loan.find({
       staffId,
-      status: "active"
+      status: { $nin: ["rejected", "paid"] }
     }).populate("clientId", "fullName phone");
 
     const result = [];
@@ -604,8 +619,8 @@ router.get("/loan-schedule", authStaff, async (req, res) => {
             summary: {
               totalInstallments: loan.installments.length,
               paidInstallments: paidInstallments.length,
-              amountPaid: paidInstallments.reduce((s,i)=>s+i.amount,0),
-              amountRemaining: unpaidInstallments.reduce((s,i)=>s+i.amount,0)
+              amountPaid: paidInstallments.reduce((sum, i) => sum + i.amount, 0),
+              amountRemaining: unpaidInstallments.reduce((sum, i) => sum + i.amount, 0)
             },
             installment: {
               week: inst.week,
