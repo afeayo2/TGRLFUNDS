@@ -490,7 +490,7 @@ router.post(
 );
 
 
-
+/*
 // GET /api/staff/loan-schedule
 router.get("/loan-schedule", authStaff, async (req, res) => {
   try {
@@ -561,6 +561,69 @@ router.get("/loan-schedule/filter", authStaff, async (req, res) => {
   });
 
   res.json(due);
+});
+*/
+
+router.get("/loan-schedule", authStaff, async (req, res) => {
+  try {
+    const { range = "today" } = req.query;
+    const staffId = new mongoose.Types.ObjectId(req.staffId);
+
+    const now = new Date();
+    const startOfToday = new Date(now.setHours(0,0,0,0));
+    const endOfToday = new Date(now.setHours(23,59,59,999));
+
+    let endDate = endOfToday;
+    if (range === "week") endDate = new Date(Date.now() + 7 * 86400000);
+    if (range === "month") endDate = new Date(Date.now() + 30 * 86400000);
+
+    const loans = await Loan.find({
+      staffId,
+      status: "active"
+    }).populate("clientId", "fullName phone");
+
+    const result = [];
+
+    loans.forEach(loan => {
+      const paidInstallments = loan.installments.filter(i => i.status === "paid");
+      const unpaidInstallments = loan.installments.filter(i => i.status === "unpaid");
+
+      unpaidInstallments.forEach(inst => {
+        const dueDate = new Date(inst.dueDate);
+
+        if (dueDate <= endDate) {
+          const isToday = dueDate >= startOfToday && dueDate <= endOfToday;
+          const isOverdue = dueDate < startOfToday;
+
+          result.push({
+            loanId: loan._id,
+            client: {
+              name: loan.clientId.fullName,
+              phone: loan.clientId.phone
+            },
+            summary: {
+              totalInstallments: loan.installments.length,
+              paidInstallments: paidInstallments.length,
+              amountPaid: paidInstallments.reduce((s,i)=>s+i.amount,0),
+              amountRemaining: unpaidInstallments.reduce((s,i)=>s+i.amount,0)
+            },
+            installment: {
+              week: inst.week,
+              amount: inst.amount,
+              dueDate: inst.dueDate,
+              visitToday: isToday,
+              overdue: isOverdue
+            }
+          });
+        }
+      });
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load loan schedule" });
+  }
 });
 
 
