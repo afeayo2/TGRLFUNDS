@@ -90,10 +90,22 @@ router.post("/:loanId/approve", authAdmin, async (req, res) => {
     await loan.save();
 
 // ✅ CREDIT CLIENT BALANCE
-await Client.findByIdAndUpdate(
-  loan.clientId,
-  { $inc: { balance: loan.approvedAmount } }
-);
+    // 1️⃣ Credit client balance
+    await Client.findByIdAndUpdate(
+      loan.clientId,
+      { $inc: { balance: loan.approvedAmount } }
+    );
+
+    // 2️⃣ Record loan disbursement
+    await Payment.create({
+      clientId: loan.clientId,
+      staffId: loan.staffId, // optional but useful
+      amount: loan.approvedAmount,
+      method: "loan-disbursement",
+      reference: `LOAN-DISB-${loan._id}-${Date.now()}`,
+      date: new Date()
+    });
+
 
 
     res.json({
