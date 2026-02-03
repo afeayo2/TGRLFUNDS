@@ -8,6 +8,9 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const Payment = require("../models/Payment");
+const Loan = require("../models/Loan");
+const LoanRepayment = require("../models/LoanPayment");
+
 
 // Register new client
 router.post(
@@ -97,40 +100,47 @@ router.post("/login", async (req, res) => {
 });
 
 
-
 router.get("/dashboard/:id", verifyJWT, async (req, res) => {
-  console.log("Dashboard route: ", req.clientId, req.params.id);
-
   if (req.clientId !== req.params.id) {
-    console.warn("Client ID mismatch");
-    return res.status(403).json({ error: "Forbidden. Token doesn't match client." });
+    return res.status(403).json({ error: "Forbidden" });
   }
 
   try {
-    const client = await Client.findById(req.params.id).lean(); // lean() is optional but faster
+    const client = await Client.findById(req.params.id).lean();
     if (!client) return res.status(404).json({ error: "Client not found" });
 
-    // Fetch recent payments from the separate Payment model
+    // Savings (Paystack)
     const payments = await Payment.find({ clientId: req.params.id })
       .sort({ createdAt: -1 })
-      .limit(5)
       .lean();
 
-    // Get recent withdrawals from embedded array (in client document)
-    const withdrawals = (client.withdrawals || [])
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 5);
+    // Withdrawals (embedded)
+    const withdrawals = (client.withdrawals || []).map(w => ({
+      ...w,
+      type: "withdrawal"
+    }));
 
-    const responseData = {
+    // ✅ Loans (ONLY disbursed)
+    const loans = await Loan.find({
+      clientId: req.params.id,
+      status: "disbursed"
+    }).lean();
+
+    // ✅ Loan repayments
+    const loanRepayments = await LoanRepayment.find({
+      clientId: req.params.id
+    }).lean();
+
+    res.json({
       fullName: client.fullName,
       balance: client.balance,
+      faceUrl: client.faceUrl || "",
       payments,
       withdrawals,
-      faceUrl: client.faceUrl || "",
-    };
+      loans,
+      loanRepayments
+    });
 
-    //console.log("Dashboard response:", responseData);
-    res.json(responseData);
   } catch (err) {
     console.error("Dashboard error:", err);
     res.status(500).json({ error: "Server error" });
@@ -180,6 +190,7 @@ router.get("/client/:id", verifyJWT, async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+
 
 router.get("/verify-payment", async (req, res) => {
   const { reference } = req.query;
