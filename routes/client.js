@@ -10,7 +10,7 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const Payment = require("../models/Payment");
 const Loan = require("../models/Loan");
 const LoanRepayment = require("../models/LoanPayment");
-const Payment = require("../models/Payment");
+
 
 
 

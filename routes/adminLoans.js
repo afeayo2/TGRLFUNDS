@@ -89,6 +89,8 @@ router.post("/:loanId/approve", authAdmin, async (req, res) => {
 
     await loan.save();
 
+    
+
 // ✅ CREDIT CLIENT BALANCE
     // 1️⃣ Credit client balance
     await Client.findByIdAndUpdate(
