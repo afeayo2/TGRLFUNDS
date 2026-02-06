@@ -3,6 +3,7 @@ const router = express.Router();
 const Loan = require("../models/Loan");
 const Client = require("../models/Client");
 const authAdmin = require("../middleware/authAdmin");
+const Payment = require("../models/Payment");
 
 /**
  * =========================
