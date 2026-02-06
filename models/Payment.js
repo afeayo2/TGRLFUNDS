@@ -4,7 +4,11 @@ const paymentSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
   staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
   amount: Number,
-  method: String,
+  method: {
+    type: String,
+    enum: ["cash", "card", "loan-cash", "loan-repayment"],
+    required: true
+  },
   reference: String,
   date: { type: Date, default: Date.now }, 
 }, { timestamps: true }); 
