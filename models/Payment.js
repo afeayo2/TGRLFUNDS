@@ -6,7 +6,7 @@ const paymentSchema = new mongoose.Schema({
   amount: Number,
   method: {
     type: String,
-    enum: ["cash", "card", "loan-cash", "loan-repayment"],
+    enum: ["cash", "card", "loan-disbursement","loan-cash", "loan-repayment"],
     required: true
   },
   reference: String,
