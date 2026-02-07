@@ -270,8 +270,8 @@ router.post("/withdraw", verifyJWT, async (req, res) => {
 // routes/client.js
 router.get("/profile", verifyJWT, async (req, res) => {
   try {
-    const client = await Client.findById(req.clientId).select(
-      "fullName phone email address"
+    const client = await Client.findById(req.clientId).select("fullName phone email address faceUrl"
+
     );
 
     if (!client) {
