@@ -242,30 +242,47 @@ router.get("/verify-payment", async (req, res) => {
   }
 });
 
-
-// POST: Withdrawal Request
+// POST: Withdrawal Request (CLIENT)
 router.post("/withdraw", verifyJWT, async (req, res) => {
-  const { clientId, amount, bankName, accountNumber } = req.body;
-  const client = await Client.findById(clientId);
-  if (!client) return res.status(404).send("Client not found");
+  try {
+    const { clientId, amount, bankName, accountNumber } = req.body;
 
-  if (client.balance < amount) {
-    return res.send("❌ Insufficient funds.");
+    if (!amount || amount <= 0) {
+      return res.status(400).send("Invalid withdrawal amount");
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return res.status(404).send("Client not found");
+    }
+
+    // ✅ Check available balance ONLY
+    if (Number(client.balance) < Number(amount)) {
+      return res.status(400).send("❌ Insufficient funds.");
+    }
+
+    // ❌ DO NOT deduct balance here
+    client.withdrawals.push({
+      amount: Number(amount),
+      bankName,
+      accountNumber,
+      status: "pending",
+      createdAt: new Date(),
+    });
+
+    await client.save();
+
+    res.json({
+      message: `✅ ₦${amount} withdrawal request submitted and pending approval.`,
+      status: "pending",
+    });
+
+  } catch (err) {
+    console.error("Withdrawal request error:", err);
+    res.status(500).send("Server error");
   }
-
-  client.balance = Number(client.balance) - Number(amount);
-
-  client.withdrawals.push({
-    amount,
-    bankName,
-    accountNumber,
-    status: "pending",
-     createdAt: new Date()
-  });
-
-  await client.save();
-  res.send(`✅ ₦${amount} will be sent to your account within 24 hours.`);
 });
+
 
 // routes/client.js
 router.get("/profile", verifyJWT, async (req, res) => {
