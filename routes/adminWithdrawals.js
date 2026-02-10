@@ -29,66 +29,69 @@ router.get("/", authAdmin, async (req, res) => {
       startDate,
       endDate,
       minAmount,
-      maxAmount,
+      maxAmount
     } = req.query;
 
-    page = parseInt(page);
-    limit = parseInt(limit);
+    page = Number(page);
+    limit = Number(limit);
 
-    const clients = await Client.find()
-      .select("fullName phone email balance withdrawals")
-      .lean();
+    const match = {};
 
-    let withdrawals = [];
-
-    clients.forEach(client => {
-      client.withdrawals?.forEach(w => {
-        withdrawals.push({
-          withdrawalId: w._id,
-          clientId: client._id,
-          fullName: client.fullName,
-          phone: client.phone,
-          email: client.email,
-          balance: client.balance,
-          amount: w.amount,
-          bankName: w.bankName,
-          accountNumber: w.accountNumber,
-          status: w.status,
-          date: w.date,
-        });
-      });
-    });
-
-    // ✅ SORT (latest first)
-    withdrawals.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // ✅ FILTERS
-    if (status) withdrawals = withdrawals.filter(w => w.status === status);
-
-    if (startDate)
-      withdrawals = withdrawals.filter(w => new Date(w.date) >= new Date(startDate));
-
+    if (status) match["withdrawals.status"] = status;
+    if (startDate) match["withdrawals.date"] = { $gte: new Date(startDate) };
     if (endDate)
-      withdrawals = withdrawals.filter(w => new Date(w.date) <= new Date(endDate));
-
-    if (minAmount)
-      withdrawals = withdrawals.filter(w => w.amount >= Number(minAmount));
-
+      match["withdrawals.date"] = {
+        ...match["withdrawals.date"],
+        $lte: new Date(endDate)
+      };
+    if (minAmount) match["withdrawals.amount"] = { $gte: Number(minAmount) };
     if (maxAmount)
-      withdrawals = withdrawals.filter(w => w.amount <= Number(maxAmount));
+      match["withdrawals.amount"] = {
+        ...match["withdrawals.amount"],
+        $lte: Number(maxAmount)
+      };
 
-    const total = withdrawals.length;
+    const pipeline = [
+      { $unwind: "$withdrawals" },
+      { $match: match },
+      {
+        $project: {
+          withdrawalId: "$withdrawals._id",
+          clientId: "$_id",
+          fullName: 1,
+          phone: 1,
+          email: 1,
+          balance: 1,
+          amount: "$withdrawals.amount",
+          bankName: "$withdrawals.bankName",
+          accountNumber: "$withdrawals.accountNumber",
+          status: "$withdrawals.status",
+          date: "$withdrawals.date"
+        }
+      },
+      { $sort: { date: -1 } },
+      {
+        $facet: {
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit }
+          ],
+          total: [{ $count: "count" }]
+        }
+      }
+    ];
 
-    // ✅ PAGINATION
-    const start = (page - 1) * limit;
-    const paginated = withdrawals.slice(start, start + limit);
+    const result = await Client.aggregate(pipeline);
+
+    const withdrawals = result[0].data;
+    const total = result[0].total[0]?.count || 0;
 
     res.json({
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      withdrawals: paginated,
+      withdrawals
     });
 
   } catch (err) {
@@ -96,6 +99,7 @@ router.get("/", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 /**
  * =====================================================
