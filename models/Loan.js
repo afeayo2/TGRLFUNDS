@@ -80,6 +80,18 @@ const loanSchema = new mongoose.Schema(
   type: mongoose.Schema.Types.ObjectId,
   ref: "Admin"
 },
+    financialProfile: {
+      creditScore: Number,
+      riskClass: String,
+      totalOutstandingLoans: Number,
+      activeLoanCount: Number,
+      monthlyRepayment: Number,
+      totalDefaults: Number,
+      estimatedIncome: Number,
+      pulledAt: Date,
+      pulledBy: String
+    },
+
 payments: [
   {
     amount: Number,

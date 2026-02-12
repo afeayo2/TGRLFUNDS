@@ -4,7 +4,7 @@ const Loan = require("../models/Loan");
 const Client = require("../models/Client");
 const authAdmin = require("../middleware/authAdmin");
 const Payment = require("../models/Payment");
-
+const axios = require("axios");
 /**
  * =========================
  * 1. GET PENDING LOANS
@@ -200,6 +200,65 @@ router.get("/", authAdmin, async (req, res) => {
   }
 });
 
+
+
+router.post("/:loanId/pull-credit", authAdmin, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId)
+      .populate("clientId");
+
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    const client = loan.clientId;
+
+    if (!client.bvn) {
+      return res.status(400).json({ message: "Client BVN not available" });
+    }
+
+    // 🔥 CALL CREDICHECK API HERE
+    const creditRes = await axios.post(
+      "https://api.credicheck.com/credit-report", // example
+      {
+        bvn: client.bvn
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CREDICHECK_API_KEY}`
+        }
+      }
+    );
+
+    const data = creditRes.data;
+
+    // Extract financial profile
+    const financialProfile = {
+      creditScore: data.credit_score,
+      riskClass: data.risk_class,
+      totalOutstandingLoans: data.total_outstanding_loans,
+      activeLoanCount: data.active_loans,
+      monthlyRepayment: data.monthly_repayment,
+      totalDefaults: data.defaults,
+      estimatedIncome: data.monthly_income,
+      pulledAt: new Date(),
+      pulledBy: "admin"
+    };
+
+    // 🔥 SAVE SNAPSHOT INTO LOAN
+    loan.financialProfile = financialProfile;
+    await loan.save();
+
+    res.json({
+      message: "Financial profile pulled successfully",
+      financialProfile
+    });
+
+  } catch (err) {
+    console.error("Credit pull error:", err);
+    res.status(500).json({ message: "Failed to pull credit report" });
+  }
+});
 
 
 module.exports = router;
