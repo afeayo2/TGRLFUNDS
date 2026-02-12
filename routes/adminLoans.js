@@ -202,63 +202,42 @@ router.get("/", authAdmin, async (req, res) => {
 
 
 
-router.post("/:loanId/pull-credit", authAdmin, async (req, res) => {
-  try {
-    const loan = await Loan.findById(req.params.loanId)
-      .populate("clientId");
 
+router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
+  try {
+    const { loanId } = req.params;
+
+    const loan = await Loan.findById(loanId).populate("client");
     if (!loan) {
       return res.status(404).json({ message: "Loan not found" });
     }
 
-    const client = loan.clientId;
+    const bvn = loan.client.bvn;
 
-    if (!client.bvn) {
-      return res.status(400).json({ message: "Client BVN not available" });
+    if (!bvn || bvn.length !== 11) {
+      return res.status(400).json({ message: "Invalid BVN" });
     }
 
-    // 🔥 CALL CREDICHECK API HERE
-    const creditRes = await axios.post(
-      "https://api.credicheck.com/credit-report", // example
+    const response = await axios.get(
+      `https://api.creditchek.africa/v1/credit/first-central`,
       {
-        bvn: client.bvn
-      },
-      {
+        params: { bvn },
         headers: {
-          Authorization: `Bearer ${process.env.CREDICHECK_API_KEY}`
+          token: process.env.CREDITCHEK_SECRET
         }
       }
     );
 
-    const data = creditRes.data;
+    res.json(response.data);
 
-    // Extract financial profile
-    const financialProfile = {
-      creditScore: data.credit_score,
-      riskClass: data.risk_class,
-      totalOutstandingLoans: data.total_outstanding_loans,
-      activeLoanCount: data.active_loans,
-      monthlyRepayment: data.monthly_repayment,
-      totalDefaults: data.defaults,
-      estimatedIncome: data.monthly_income,
-      pulledAt: new Date(),
-      pulledBy: "admin"
-    };
+  } catch (error) {
+    console.error("Credit API Error:", error.response?.data || error.message);
 
-    // 🔥 SAVE SNAPSHOT INTO LOAN
-    loan.financialProfile = financialProfile;
-    await loan.save();
-
-    res.json({
-      message: "Financial profile pulled successfully",
-      financialProfile
+    res.status(500).json({
+      message: "Failed to pull credit report",
+      error: error.response?.data || error.message
     });
-
-  } catch (err) {
-    console.error("Credit pull error:", err);
-    res.status(500).json({ message: "Failed to pull credit report" });
   }
 });
-
 
 module.exports = router;
