@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const installmentSchema = new mongoose.Schema({
   week: Number,
   amount: Number,
@@ -12,9 +11,6 @@ const installmentSchema = new mongoose.Schema({
   },
   paidAt: Date
 });
-
-
-
 
 const loanSchema = new mongoose.Schema(
   {
@@ -103,6 +99,11 @@ payments: [
     staffId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Staff"
+    },
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client",
+      required: true
     },
     paidBy: {
       type: String,

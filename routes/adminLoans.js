@@ -202,24 +202,34 @@ router.get("/", authAdmin, async (req, res) => {
 
 
 
-
 router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
   try {
     const { loanId } = req.params;
 
-    const loan = await Loan.findById(loanId).populate("client");
+    const loan = await Loan.findById(loanId)
+      .populate({
+        path: "clientId",
+        select: "bvn fullName phone"
+      });
+
     if (!loan) {
       return res.status(404).json({ message: "Loan not found" });
     }
 
-    const bvn = loan.client.bvn;
+    const client = loan.clientId;
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    const bvn = client.bvn;
 
     if (!bvn || bvn.length !== 11) {
       return res.status(400).json({ message: "Invalid BVN" });
     }
 
     const response = await axios.get(
-      `https://api.creditchek.africa/v1/credit/first-central`,
+      "https://api.creditchek.africa/v1/credit/first-central",
       {
         params: { bvn },
         headers: {
