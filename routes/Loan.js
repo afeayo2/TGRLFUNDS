@@ -10,8 +10,7 @@ const LoanPayment = require("../models/LoanPayment");
 const DOJAH_API_KEY = process.env.DOJAH_API_KEY;
 const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
 
-/**const bvn = loan.client.bvn;
-
+/**
  * ============================
  * REQUEST LOAN (PREVIEW)
  * ============================
@@ -52,6 +51,11 @@ router.post("/request", verifyJWT, async (req, res) => {
      * BVN / DOJAH VERIFICATION
      * ============================
      */
+    if (externalVerified) {
+      client.bvn = bvn;
+      await client.save();
+    }
+
     if (bvn) {
       try {
         const verifyBVN = await axios.get(
@@ -236,7 +240,11 @@ router.post("/confirm", verifyJWT, async (req, res) => {
     } = req.body;
 
     const loan = await Loan.create({
-      clientId: req.clientId,
+        clientId: req.clientId,
+        staffId: client.staffId,
+
+        bvn: client.bvn, // ✅ ADD THIS
+       clientId: req.clientId,
       staffId: client.staffId, // ✅ ASSIGNED STAFF
       approvedAmount,
       amount: approvedAmount,
