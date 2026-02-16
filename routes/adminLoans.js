@@ -201,7 +201,7 @@ router.get("/", authAdmin, async (req, res) => {
 });
 
 
-
+/*
 router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
   try {
     const { loanId } = req.params;
@@ -249,5 +249,40 @@ router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
     });
   }
 });
+*/
+
+router.get("/:loanId/pull-credit", async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.loanId)
+      .populate("clientId");
+
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    const bvn = loan.clientId.bvn;
+
+    const response = await axios.get(
+      `https://api.creditchek.africa/v1/credit/premium?bvn=${bvn}`,
+      {
+        headers: {
+          token: process.env.CREDITCHEK_SECRET
+        }
+      }
+    );
+
+    // 🔥 SAVE TO DB
+    loan.externalCreditReport = response.data;
+    loan.externalCreditPulledAt = new Date();
+    await loan.save();
+
+    res.json(response.data);
+
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ message: "Credit check failed" });
+  }
+});
+
 
 module.exports = router;
