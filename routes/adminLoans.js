@@ -201,7 +201,7 @@ router.get("/", authAdmin, async (req, res) => {
 });
 
 
-/*
+
 router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
   try {
     const { loanId } = req.params;
@@ -238,6 +238,11 @@ router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
       }
     );
 
+ // 🔥 SAVE TO DB
+  loan.externalCreditReport = response.data;
+  loan.externalCreditPulledAt = new Date();
+  await loan.save();
+
     res.json(response.data);
 
   } catch (error) {
@@ -249,8 +254,8 @@ router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
     });
   }
 });
-*/
 
+/*
 router.get("/:loanId/pull-credit", async (req, res) => {
   try {
     const loan = await Loan.findById(req.params.loanId)
@@ -283,6 +288,6 @@ router.get("/:loanId/pull-credit", async (req, res) => {
     res.status(500).json({ message: "Credit check failed" });
   }
 });
-
+*/
 
 module.exports = router;

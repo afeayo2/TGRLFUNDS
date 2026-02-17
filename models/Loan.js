@@ -105,6 +105,10 @@ payments: [
       ref: "Client",
       required: true
     },
+    externalCreditReport: { type: Object },
+    externalCreditPulledAt: { type: Date },
+
+    
     paidBy: {
       type: String,
       enum: ["client", "staff"]
