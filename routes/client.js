@@ -163,7 +163,7 @@ router.post("/pay", verifyJWT, async (req, res) => {
         email,
         amount: Number(amount) * 100,
         metadata: { clientId: client._id },
-        callback_url: "https://trustgolden.com.ng/verify-payment",
+        callback_url: "https://trustgolden.com.ng/client/verify-payment",
       },
       {
         headers: {
