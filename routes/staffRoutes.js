@@ -457,6 +457,7 @@ router.post(
         method: "cash",
         installmentWeek: installment.week,
         staffId: req.staffId,
+         clientId: loan.clientId,
         paidBy: "staff",
         reference: `LOAN-CASH-${Date.now()}`
       });
