@@ -115,7 +115,7 @@ router.get("/disbursements",verifyJWT,async (req, res) => {
 router.post("/disbursements/:id/treated",verifyJWT,async (req, res) => {
   const { type } = req.body; // payment | withdrawal
 
-  const Model = type === "payment" ? Payment : Withdrawal;
+  const Model = type === "payment" ? Payment : Withdrawal;12
   const record = await Model.findById(req.params.id);
 
   if (!record) return res.status(404).json({ message: "Not found" });
@@ -154,6 +154,7 @@ router.post("/calls/log",verifyJWT,async (req, res) => {
   res.json({ message: "Call logged", log });
 });
 
+
 router.get("/calls/daily",verifyJWT,async (req, res) => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -167,36 +168,36 @@ router.get("/calls/daily",verifyJWT,async (req, res) => {
 });
 
 
-router.get("/clients/search/:query",verifyJWT,async (req, res) => {
-  const query = req.params.query;
+router.get("/clients/search/:query", verifyJWT, async (req, res) => {
+  try {
+    const query = req.params.query;
 
-  const client = await Client.findOne({
-    $or: [
-      { fullName: { $regex: query, $options: "i" } },
-      { phone: query }
-    ]
-  });
+    const client = await Client.findOne({
+      $or: [
+        { fullName: { $regex: query, $options: "i" } },
+        { phone: query }
+      ]
+    });
 
-  if (!client) {
-    return res.status(404).json({ message: "Client not found" });
-  }
-
-  const loans = await Loan.find({ clientId: client._id });
-  const payments = await Payment.find({ clientId: client._id });
-
-  res.json({
-    client: {
-      ...client.toObject(),
-      loans,
-      payments
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
     }
-  });
 
-  if (!client) {
-    return res.status(404).json({ message: "Client not found" });
+    const loans = await Loan.find({ clientId: client._id });
+    const payments = await Payment.find({ clientId: client._id });
+
+    return res.json({
+      client: {
+        ...client.toObject(),
+        loans,
+        payments
+      }
+    });
+
+  } catch (error) {
+    console.error("Search error:", error);
+    return res.status(500).json({ message: "Server error" });
   }
-
-  res.json({ client });
 });
 
 
