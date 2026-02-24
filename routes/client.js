@@ -149,6 +149,7 @@ router.get("/dashboard/:id", verifyJWT, async (req, res) => {
   }
 });
 
+/*
 // POST: Make online payment (simplified)
 router.post("/pay", verifyJWT, async (req, res) => {
   const { amount, email } = req.body;
@@ -174,6 +175,53 @@ router.post("/pay", verifyJWT, async (req, res) => {
     );
 
     res.json({ url: paystackRes.data.data.authorization_url });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).send("Payment initialization failed");
+  }
+})*/
+
+router.post("/pay", verifyJWT, async (req, res) => {
+  const { amount, email } = req.body;
+
+  const client = await Client.findById(req.clientId);
+  if (!client) return res.status(404).send("Client not found");
+
+  try {
+    const rawAmount = Number(amount);
+
+    // Paystack charge
+    let charge = rawAmount * 0.015 + 100;
+    if (charge > 2000) charge = 2000;
+
+    const totalAmount = rawAmount + charge;
+
+    const paystackRes = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        email,
+        amount: Math.round(totalAmount * 100),
+        metadata: {
+          clientId: client._id,
+          originalAmount: rawAmount,
+          charge: charge
+        },
+        callback_url: "https://golden-funds.onrender.com/client/verify-payment",
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    res.json({
+      url: paystackRes.data.data.authorization_url,
+      totalAmount,
+      charge
+    });
+
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).send("Payment initialization failed");
@@ -215,7 +263,9 @@ router.get("/verify-payment", async (req, res) => {
     }
 
     const clientId = data.metadata?.clientId;
-    const amount = data.amount / 100;
+    const totalPaid = data.amount / 100;
+    const originalAmount = data.metadata?.originalAmount;
+    const charge = data.metadata?.charge;
 
     const client = await Client.findById(clientId);
     if (!client) return res.status(404).send("Client not found");
@@ -224,11 +274,14 @@ router.get("/verify-payment", async (req, res) => {
     if (!exists) {
       const payment = new Payment({
         clientId,
-        amount,
-        method: "Paystack",
+        amount: originalAmount,
+        method: "card",
+        totalPaid,
         reference,
+        charge
       });
 
+      
       await payment.save();
       client.balance = Number(client.balance || 0) + Number(amount);
       await client.save();

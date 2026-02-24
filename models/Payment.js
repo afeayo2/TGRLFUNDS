@@ -4,6 +4,8 @@ const paymentSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
   staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
   amount: Number,
+    charge:Number,
+      totalPaid: Number,
   method: {
     type: String,
     enum: ["cash", "card", "loan-disbursement","loan-cash", "loan-repayment"],

@@ -1,17 +1,85 @@
 const express = require("express");
 const router = express.Router();
-//const verifyJWT = require("../middleware/verifyStaffJWT");
-//const requireFrontDesk = require("../middleware/requireFrontDesk");
+const verifyJWT = require("../middleware/verifyFrontDeskJWT");
+
+const FrontDesk = require("../models/FrontDesk");
 const Client = require("../models/Client");
 const Loan = require("../models/Loan");
 const Payment = require("../models/Payment");
-//const Withdrawal = require("../models/Withdrawal");
 const CallLog = require("../models/CallLog");
 
-//router.use(verifyJWT, requireFrontDesk);
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 
-router.get("/clients/:id", async (req, res) => {
+/*
+router.post("/register", async (req, res) => {
+  console.log("REGISTER HIT");
+  res.json({ message: "Test working" });
+});
+*/
+
+// REGISTER
+router.post("/register", async (req, res) => {
+  try {
+    const { fullName, email, phone, password } = req.body;
+
+    const exists = await FrontDesk.findOne({ email });
+    if (exists)
+      return res.status(400).json({ message: "Email already exists" });
+
+    await FrontDesk.create({
+      fullName,
+      email,
+      phone,
+      password
+    });
+
+    res.status(201).json({ message: "FrontDesk account created" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// LOGIN
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const staff = await FrontDesk.findOne({ email });
+    if (!staff)
+      return res.status(400).json({ message: "Invalid credentials" });
+
+    const isMatch = await bcrypt.compare(password, staff.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
+
+    const token = jwt.sign(
+      { id: staff._id, role: staff.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      message: "Login successful",
+      token,
+      staff: {
+        id: staff._id,
+        name: staff.fullName,
+        email: staff.email
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
+
+router.use(verifyJWT);
+
+router.get("/clients/:id",verifyJWT, async (req, res) => {
   const client = await Client.findById(req.params.id)
     .populate("loans")
     .populate("payments")
@@ -35,14 +103,14 @@ router.get("/clients/:id", async (req, res) => {
 });
 
 
-router.get("/disbursements", async (req, res) => {
+router.get("/disbursements",verifyJWT,async (req, res) => {
   const payments = await Payment.find({ status: "approved" });
   //const withdrawals = await Withdrawal.find({ status: "approved" });
 
   res.json({ payments});
 });
 
-router.post("/disbursements/:id/treated", async (req, res) => {
+router.post("/disbursements/:id/treated",verifyJWT,async (req, res) => {
   const { type } = req.body; // payment | withdrawal
 
   const Model = type === "payment" ? Payment : Withdrawal;
@@ -58,7 +126,7 @@ router.post("/disbursements/:id/treated", async (req, res) => {
 });
 
 
-router.get("/loan-defaulters", async (req, res) => {
+router.get("/loan-defaulters",verifyJWT,async (req, res) => {
   const today = new Date();
 
   const defaulters = await Loan.find({
@@ -70,7 +138,7 @@ router.get("/loan-defaulters", async (req, res) => {
 });
 
 
-router.post("/calls/log", async (req, res) => {
+router.post("/calls/log",verifyJWT,async (req, res) => {
   const { clientId, loanId, note, outcome } = req.body;
 
   const log = await CallLog.create({
@@ -84,7 +152,7 @@ router.post("/calls/log", async (req, res) => {
   res.json({ message: "Call logged", log });
 });
 
-router.get("/calls/daily", async (req, res) => {
+router.get("/calls/daily",verifyJWT,async (req, res) => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
@@ -94,6 +162,23 @@ router.get("/calls/daily", async (req, res) => {
   });
 
   res.json({ callsToday: count });
+});
+
+router.get("/clients/search/:query",verifyJWT,async (req, res) => {
+  const query = req.params.query;
+
+  const client = await Client.findOne({
+    $or: [
+      { fullName: { $regex: query, $options: "i" } },
+      { phone: query }
+    ]
+  }).populate("loans payments");
+
+  if (!client) {
+    return res.status(404).json({ message: "Client not found" });
+  }
+
+  res.json({ client });
 });
 
 module.exports = router;
