@@ -7,6 +7,7 @@ const Client = require("../models/Client");
 const Loan = require("../models/Loan");
 const Payment = require("../models/Payment");
 const CallLog = require("../models/CallLog");
+const Complaint = require("../models/Complaint");
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -80,10 +81,12 @@ router.post("/login", async (req, res) => {
 router.use(verifyJWT);
 
 router.get("/clients/:id",verifyJWT, async (req, res) => {
-  const client = await Client.findById(req.params.id)
-    .populate("loans")
-    .populate("payments")
-    //.populate("withdrawals");
+  const client = await Client.findById(req.params.id);
+  if (!client)
+    return res.status(404).json({ message: "Client not found" });
+
+  const loans = await Loan.find({ clientId: client._id });
+  const payments = await Payment.find({ clientId: client._id });
 
   if (!client) return res.status(404).json({ message: "Client not found" });
 
@@ -95,9 +98,8 @@ router.get("/clients/:id",verifyJWT, async (req, res) => {
       balance: client.balance,
       savings: client.savings,
       onboardedAt: client.createdAt,
-      loans: client.loans,
-      payments: client.payments,
-      //withdrawals: client.withdrawals
+      loans,
+      payments
     }
   });
 });
@@ -164,6 +166,7 @@ router.get("/calls/daily",verifyJWT,async (req, res) => {
   res.json({ callsToday: count });
 });
 
+
 router.get("/clients/search/:query",verifyJWT,async (req, res) => {
   const query = req.params.query;
 
@@ -172,13 +175,69 @@ router.get("/clients/search/:query",verifyJWT,async (req, res) => {
       { fullName: { $regex: query, $options: "i" } },
       { phone: query }
     ]
-  }).populate("loans payments");
+  });
+
+  if (!client) {
+    return res.status(404).json({ message: "Client not found" });
+  }
+
+  const loans = await Loan.find({ clientId: client._id });
+  const payments = await Payment.find({ clientId: client._id });
+
+  res.json({
+    client: {
+      ...client.toObject(),
+      loans,
+      payments
+    }
+  });
 
   if (!client) {
     return res.status(404).json({ message: "Client not found" });
   }
 
   res.json({ client });
+});
+
+
+router.post("/complaints", verifyJWT, async (req, res) => {
+  try {
+    const { clientId, title, description } = req.body;
+
+    const complaint = await Complaint.create({
+      clientId,
+      staffId: req.staff.id,
+      title,
+      description
+    });
+
+    res.json({ message: "Complaint logged", complaint });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+router.patch("/complaints/:id/resolve", verifyJWT, async (req, res) => {
+  const complaint = await Complaint.findById(req.params.id);
+  if (!complaint)
+    return res.status(404).json({ message: "Not found" });
+
+  complaint.status = "resolved";
+  complaint.resolvedAt = new Date();
+  await complaint.save();
+
+  res.json({ message: "Complaint resolved" });
+});
+
+router.get("/clients/:id/complaints", verifyJWT, async (req, res) => {
+  const complaints = await Complaint.find({
+    clientId: req.params.id
+  }).sort({ createdAt: -1 });
+
+  res.json(complaints);
 });
 
 module.exports = router;
