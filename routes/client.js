@@ -281,9 +281,11 @@ router.get("/verify-payment", async (req, res) => {
         charge
       });
 
-      
       await payment.save();
-      client.balance = Number(client.balance || 0) + Number(amount);
+
+      client.balance =
+        Number(client.balance || 0) + Number(originalAmount);
+
       await client.save();
     }
 
