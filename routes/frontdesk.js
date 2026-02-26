@@ -11,7 +11,7 @@ const Complaint = require("../models/Complaint");
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
+const mongoose = require("mongoose");
 
 /*
 router.post("/register", async (req, res) => {
@@ -202,6 +202,9 @@ router.get("/clients/search/:query", verifyJWT, async (req, res) => {
 
 
 router.post("/complaints", verifyJWT, async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid client ID" });
+  }
   try {
     const { clientId, title, description } = req.body;
 
@@ -233,12 +236,19 @@ router.patch("/complaints/:id/resolve", verifyJWT, async (req, res) => {
   res.json({ message: "Complaint resolved" });
 });
 
+
 router.get("/clients/:id/complaints", verifyJWT, async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid client ID" });
+  }
+
   const complaints = await Complaint.find({
     clientId: req.params.id
   }).sort({ createdAt: -1 });
 
   res.json(complaints);
 });
+
+
 
 module.exports = router;
