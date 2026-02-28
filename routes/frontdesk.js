@@ -202,11 +202,16 @@ router.get("/clients/search/:query", verifyJWT, async (req, res) => {
 
 
 router.post("/complaints", verifyJWT, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ message: "Invalid client ID" });
-  }
   try {
     const { clientId, title, description } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ message: "Invalid client ID" });
+    }
+
+    if (!title || !description) {
+      return res.status(400).json({ message: "All fields required" });
+    }
 
     const complaint = await Complaint.create({
       clientId,
@@ -215,13 +220,17 @@ router.post("/complaints", verifyJWT, async (req, res) => {
       description
     });
 
-    res.json({ message: "Complaint logged", complaint });
+    res.status(201).json({
+      message: "Complaint logged successfully",
+      complaint
+    });
 
   } catch (err) {
-    console.error(err);
+    console.error("Complaint error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 router.patch("/complaints/:id/resolve", verifyJWT, async (req, res) => {
