@@ -123,9 +123,16 @@ router.post("/add", authICT, async (req, res) => {
  * =========================
  */
 /** * VIEW ALL ASSETS */ 
-router.get("/", authICT, async (req, res) =>{ 
-  const assets = await Inventory.find().sort(
-    { createdAt: -1 }); res.json(assets); });
+router.get("/", async (req, res) => {
+  try {
+    const assets = await Inventory.find()
+      .populate("assignedToId", "fullName");
+    res.json(assets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
      /**
 
  * =========================
