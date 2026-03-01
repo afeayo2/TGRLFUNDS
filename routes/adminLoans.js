@@ -5,6 +5,30 @@ const Client = require("../models/Client");
 const authAdmin = require("../middleware/authAdmin");
 const Payment = require("../models/Payment");
 const axios = require("axios");
+const sendEmail = require("../utils/sendEmail");
+const {
+  loanApprovedTemplate,
+  loanRejectedTemplate
+} = require("../utils/emailTemplates");
+
+
+
+router.get("/test-email", async (req, res) => {
+  try {
+    await sendEmail(
+      "afeayosunday@gmail.com",
+      "Test Email",
+      "<h2>SMTP is working 🎉</h2>"
+    );
+
+    res.json({ message: "Email sent successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 /**
  * =========================
  * 1. GET PENDING LOANS
@@ -109,7 +133,15 @@ router.post("/:loanId/approve", authAdmin, async (req, res) => {
       date: new Date()
     });
 
+    const client = await Client.findById(loan.clientId);
 
+    if (client?.email) {
+      await sendEmail(
+        client.email,
+        "Your Loan Has Been Approved 🎉",
+        loanApprovedTemplate(client.fullName, loan.approvedAmount)
+      );
+    }
 
     res.json({
       message: "Loan approved by admin",
@@ -144,6 +176,16 @@ router.post("/:loanId/reject", authAdmin, async (req, res) => {
     loan.adminNote = req.body?.note || "Rejected by admin";
 
     await loan.save();
+
+    const client = await Client.findById(loan.clientId);
+
+    if (client?.email) {
+      await sendEmail(
+        client.email,
+        "Loan Application Update",
+        loanRejectedTemplate(client.fullName)
+      );
+    }
 
     res.json({
       message: "Loan rejected by admin",
@@ -254,6 +296,8 @@ router.get("/:loanId/pull-credit", authAdmin, async (req, res) => {
     });
   }
 });
+
+
 
 /*
 router.get("/:loanId/pull-credit", async (req, res) => {
