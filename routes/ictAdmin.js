@@ -11,7 +11,7 @@ const Loan = require("../models/Loan");
 const Inventory = require("../models/Inventory");
 const LoanPayment = require("../models/LoanPayment");
 const Payment = require("../models/Payment");
-
+const Complaint = require("../models/Complaint");
 /**
  * =========================
  * ICT DASHBOARD OVERVIEW
@@ -294,6 +294,70 @@ router.get("/performance", authICT, async (req, res) => {
   } catch (err) {
     console.error("Performance error:", err);
     res.status(500).json({ message: "Performance error" });
+  }
+});
+
+
+/**
+ * =========================
+ * VIEW ALL COMPLAINTS (ICT ONLY)
+ * =========================
+ */
+/**
+ * =========================
+ * VIEW / FILTER COMPLAINTS (ICT)
+ * =========================
+ */
+router.get("/complaints", authICT, async (req, res) => {
+  try {
+    const { status } = req.query; // ?status=open or resolved
+
+    const filter = {};
+    if (status && ["open", "resolved"].includes(status)) {
+      filter.status = status;
+    }
+
+    const complaints = await Complaint.find(filter)
+      .populate("clientId", "fullName phone")
+      .populate("staffId", "fullName email")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      count: complaints.length,
+      complaints
+    });
+
+  } catch (err) {
+    console.error("ICT complaint fetch error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+/**
+ * =========================
+ * RESOLVE COMPLAINT (ICT)
+ * =========================
+ */
+router.patch("/complaints/:id/resolve", authICT, async (req, res) => {
+  try {
+    const complaint = await Complaint.findById(req.params.id);
+
+    if (!complaint) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+
+    complaint.status = "resolved";
+    complaint.resolvedAt = new Date();
+    complaint.resolvedBy = req.staff.id; // optional tracking
+
+    await complaint.save();
+
+    res.json({ message: "Complaint resolved successfully" });
+
+  } catch (err) {
+    console.error("Resolve complaint error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

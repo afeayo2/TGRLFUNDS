@@ -12,6 +12,10 @@ const complaintSchema = new mongoose.Schema(
       ref: "FrontDesk",
       required: true
     },
+    resolvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ICTStaff"
+    },
     title: String,
     description: String,
     status: {
@@ -23,5 +27,6 @@ const complaintSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 
 module.exports = mongoose.model("Complaint", complaintSchema);
