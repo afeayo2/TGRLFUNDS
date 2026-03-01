@@ -349,7 +349,7 @@ router.patch("/complaints/:id/resolve", authICT, async (req, res) => {
 
     complaint.status = "resolved";
     complaint.resolvedAt = new Date();
-    complaint.resolvedBy = req.staff.id; // optional tracking
+    complaint.resolvedBy = req.ict.id; 
 
     await complaint.save();
 
