@@ -356,9 +356,118 @@ router.get("/profile", verifyJWT, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+// ===========================
+// FORGOT PASSWORD - SEND OTP (PHONE BASED)
+// ===========================
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ message: "Phone number is required" });
+    }
+
+    const client = await Client.findOne({ phone });
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    if (!client.email) {
+      return res.status(400).json({
+        message: "No email linked to this account. Contact support."
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash OTP before saving
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
+    client.resetOtp = hashedOtp;
+    client.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    await client.save();
+
+    // Send OTP to REGISTERED EMAIL automatically
+    await sendEmail(
+      client.email,
+      "Password Reset OTP - TrustGolden",
+      `
+      <div style="font-family:Arial;padding:20px">
+        <h2>Password Reset Request</h2>
+        <p>Hello ${client.fullName},</p>
+        <p>Your OTP is:</p>
+        <h1 style="letter-spacing:5px">${otp}</h1>
+        <p>This OTP expires in 10 minutes.</p>
+        <p>If you did not request this, ignore this email.</p>
+      </div>
+      `
+    );
+
+    res.json({
+      message: "OTP sent to your registered email"
+    });
+
+  } catch (err) {
+    console.error("FORGOT PASSWORD ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 
+// ===========================
+// VERIFY OTP & RESET PASSWORD
+// ===========================
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { phone, otp, newPassword } = req.body;
 
+    if (!phone || !otp || !newPassword) {
+      return res.status(400).json({
+        message: "All fields are required"
+      });
+    }
+
+    const client = await Client.findOne({ phone });
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    if (!client.resetOtp || !client.resetOtpExpires) {
+      return res.status(400).json({ message: "No OTP request found" });
+    }
+
+    if (Date.now() > client.resetOtpExpires) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    const isMatch = await bcrypt.compare(otp, client.resetOtp);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    client.password = hashedPassword;
+    client.resetOtp = undefined;
+    client.resetOtpExpires = undefined;
+
+    await client.save();
+
+    res.json({
+      message: "Password reset successful"
+    });
+
+  } catch (err) {
+    console.error("RESET PASSWORD ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 /*
 // Get payments by client ID
 router.get('/payments/:clientId', async (req, res) => {

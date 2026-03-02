@@ -58,6 +58,8 @@ const clientSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  resetOtp: String,
+  resetOtpExpires: Date,
 
   nextOfKin: {
     fullName: { type: String, required: true },
