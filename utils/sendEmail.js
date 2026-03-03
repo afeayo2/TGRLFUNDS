@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
-  host: 'mail.greatfutureinternationalnurseryandprimaryschool.com',
+  host: 'mail.trustgolden@topteck.com.ng',
   port: 465,
   secure: true,
   auth: {
