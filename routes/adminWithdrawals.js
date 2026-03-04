@@ -3,6 +3,7 @@ const router = express.Router();
 const Client = require("../models/Client");
 const authAdmin = require("../middleware/authAdmin");
 const mongoose = require("mongoose");
+const sendEmail = require("../utils/sendEmail");
 
 /**
  * ✅ GET ALL WITHDRAWALS (ADMIN)
@@ -171,6 +172,82 @@ router.post("/:withdrawalId/approve", authAdmin, async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
+    // ✅ Deduct balance
+    client.balance -= withdrawal.amount;
+    withdrawal.status = "approved";
+
+    await client.save();
+
+    // ✅ Send Email (SAFE - will not crash system)
+    if (client.email) {
+      try {
+        await sendEmail(
+          client.email,
+          "Withdrawal Approved - PaceSave",
+          `
+          <div style="font-family:Arial;padding:20px">
+            <h2 style="color:green;">Withdrawal Successful</h2>
+            <p>Hello ${client.fullName},</p>
+
+            <p>Your withdrawal request has been <strong>approved</strong>.</p>
+
+            <div style="background:#f4f4f4;padding:15px;border-radius:8px">
+              <p><strong>Amount:</strong> ₦${withdrawal.amount.toLocaleString()}</p>
+              <p><strong>Bank:</strong> ${withdrawal.bankName}</p>
+              <p><strong>Account Number:</strong> ${withdrawal.accountNumber}</p>
+              <p><strong>New Balance:</strong> ₦${client.balance.toLocaleString()}</p>
+              <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+
+            <p style="margin-top:15px">
+              The funds have been credited to your bank account.
+            </p>
+
+            <p>Thank you for banking with PaceSave.</p>
+          </div>
+          `
+        );
+      } catch (emailError) {
+        console.error("Approval email failed:", emailError.message);
+      }
+    }
+
+    res.json({
+      message: "Withdrawal approved successfully",
+      newBalance: client.balance
+    });
+
+  } catch (err) {
+    console.error("Error approving withdrawal:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/*
+router.post("/:withdrawalId/approve", authAdmin, async (req, res) => {
+  try {
+    const { withdrawalId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(withdrawalId)) {
+      return res.status(400).json({ message: "Invalid withdrawal ID" });
+    }
+
+    const client = await Client.findOne({ "withdrawals._id": withdrawalId });
+
+    if (!client) {
+      return res.status(404).json({ message: "Withdrawal not found" });
+    }
+
+    const withdrawal = client.withdrawals.id(withdrawalId);
+
+    if (withdrawal.status !== "pending") {
+      return res.status(400).json({ message: "Withdrawal is not pending" });
+    }
+
+    if (client.balance < withdrawal.amount) {
+      return res.status(400).json({ message: "Insufficient balance" });
+    }
+
     // ✅ SINGLE place balance is deducted
     client.balance -= withdrawal.amount;
     withdrawal.status = "approved";
@@ -188,7 +265,7 @@ router.post("/:withdrawalId/approve", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
+*/
 /**
  * ✅ REJECT WITHDRAWAL
  */

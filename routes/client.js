@@ -242,7 +242,7 @@ router.get("/client/:id", verifyJWT, async (req, res) => {
   }
 });
 
-
+/*
 router.get("/verify-payment", async (req, res) => {
   const { reference } = req.query;
   if (!reference) return res.status(400).send("Missing reference");
@@ -297,6 +297,116 @@ router.get("/verify-payment", async (req, res) => {
     res.status(500).send("Payment verification failed");
   }
 });
+*/
+router.get("/verify-payment", async (req, res) => {
+  const { reference } = req.query;
+  if (!reference) return res.status(400).send("Missing reference");
+
+  try {
+    const response = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        },
+      }
+    );
+
+    const data = response.data.data;
+
+    if (data.status !== "success") {
+      return res.status(400).send("Payment not successful");
+    }
+
+    const clientId = data.metadata?.clientId;
+    const totalPaid = data.amount / 100;
+    const originalAmount = data.metadata?.originalAmount;
+    const charge = data.metadata?.charge;
+
+    const client = await Client.findById(clientId);
+    if (!client) return res.status(404).send("Client not found");
+
+    const exists = await Payment.findOne({ reference });
+
+    if (!exists) {
+      const payment = new Payment({
+        clientId,
+        amount: originalAmount,
+        method: "card",
+        totalPaid,
+        reference,
+        charge
+      });
+
+      await payment.save();
+
+      client.balance =
+        Number(client.balance || 0) + Number(originalAmount);
+
+      await client.save();
+
+      // ✅ SEND PAYMENT EMAIL HERE
+      if (client.email) {
+        await sendEmail(
+          client.email,
+          "Payment Successful - TrustGolden",
+          `
+          <div style="font-family:Arial;padding:20px">
+            <h2 style="color:#16a34a;">Payment Successful 🎉</h2>
+            <p>Hello ${client.fullName},</p>
+
+            <p>Your payment has been received successfully.</p>
+
+            <table style="width:100%;border-collapse:collapse;margin-top:15px">
+              <tr>
+                <td style="padding:8px;border:1px solid #ddd;">Amount Paid</td>
+                <td style="padding:8px;border:1px solid #ddd;">
+                  ₦${Number(originalAmount).toLocaleString()}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px;border:1px solid #ddd;">Transaction Charge</td>
+                <td style="padding:8px;border:1px solid #ddd;">
+                  ₦${Number(charge).toLocaleString()}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px;border:1px solid #ddd;">Total Paid</td>
+                <td style="padding:8px;border:1px solid #ddd;">
+                  ₦${Number(totalPaid).toLocaleString()}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px;border:1px solid #ddd;">Reference</td>
+                <td style="padding:8px;border:1px solid #ddd;">
+                  ${reference}
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin-top:20px;">
+              Your updated balance is:
+              <strong>
+                ₦${Number(client.balance).toLocaleString()}
+              </strong>
+            </p>
+
+            <p>Thank you for trusting TrustGolden.</p>
+          </div>
+          `
+        );
+      }
+    }
+
+    res.redirect(`https://trustgolden.com.ng/dashboard.html`);
+
+  } catch (err) {
+    console.error("Verification failed:", err.response?.data || err.message);
+    res.status(500).send("Payment verification failed");
+  }
+});
+
+
 
 // POST: Withdrawal Request (CLIENT)
 router.post("/withdraw", verifyJWT, async (req, res) => {

@@ -361,4 +361,91 @@ router.patch("/complaints/:id/resolve", authICT, async (req, res) => {
   }
 });
 
+
+/**
+ * =====================================================
+ * CLIENT PAYMENT STATEMENT (WITH STAFF + RUNNING BALANCE)
+ * =====================================================
+ */
+router.get("/payments/client-history", authICT, async (req, res) => {
+  try {
+    const { search, startDate, endDate } = req.query;
+
+    if (!search) {
+      return res.status(400).json({ message: "Phone or name is required" });
+    }
+
+    // 🔍 Find client
+    const client = await Client.findOne({
+      $or: [
+        { phone: { $regex: search, $options: "i" } },
+        { fullName: { $regex: search, $options: "i" } }
+      ]
+    }).select("_id fullName phone balance");
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    // 📅 Payment filter
+    let paymentFilter = { clientId: client._id };
+
+    if (startDate || endDate) {
+      paymentFilter.createdAt = {};
+      if (startDate)
+        paymentFilter.createdAt.$gte = new Date(startDate);
+      if (endDate)
+        paymentFilter.createdAt.$lte = new Date(endDate + "T23:59:59");
+    }
+
+    // Get payments oldest first for correct running balance
+    const payments = await Payment.find(paymentFilter)
+      .populate("staffId", "fullName")
+      .sort({ createdAt: 1 });
+
+    let cashTotal = 0;
+    let cardTotal = 0;
+    let runningBalance = 0;
+
+    const paymentList = payments.map(p => {
+
+      // Add to totals
+      if (p.method === "cash") cashTotal += p.amount;
+      if (p.method === "card") cardTotal += p.amount;
+
+      // Update running balance
+      runningBalance += p.amount;
+
+      return {
+        paymentId: p._id,
+        amount: p.amount,
+        method: p.method,
+        staffCollectedBy: p.staffId ? p.staffId.fullName : "System",
+        date: p.createdAt.toISOString().split("T")[0],
+        time: p.createdAt.toTimeString().split(" ")[0],
+        runningBalance
+      };
+    });
+
+    res.json({
+      client: {
+        id: client._id,
+        fullName: client.fullName,
+        phone: client.phone
+      },
+      totalPayments: payments.length,
+      payments: paymentList.reverse(), // show newest first
+      totals: {
+        cash: cashTotal,
+        card: cardTotal,
+        grandTotal: cashTotal + cardTotal
+      }
+    });
+
+  } catch (err) {
+    console.error("Client statement error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;

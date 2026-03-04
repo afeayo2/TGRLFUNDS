@@ -11,7 +11,7 @@ const Loan = require("../models/Loan");
 const mongoose = require("mongoose");
 
 //const sendSMS = require('../utils/sendSMS');
-//const sendEmail = require('../utils/sendEmail');
+const sendEmail = require('../utils/sendEmail');
 
 router.get("/me", authStaff, async (req, res) => {
   try {
@@ -122,6 +122,8 @@ router.post(
 });
 */
 
+
+/** 
 // Record cash collection
 router.post("/collect-payment", authStaff, async (req, res) => {
   const { clientId, amount } = req.body;
@@ -148,7 +150,7 @@ router.post("/collect-payment", authStaff, async (req, res) => {
     if (client.phone) {
       await sendSMS(client.phone, `₦${amount} has been collected. Your new balance is ₦${client.balance.toFixed(2)}.`);
     }*/
-
+/*
     res
       .status(201)
       .json({ message: "Payment recorded and client notified", payment });
@@ -156,7 +158,72 @@ router.post("/collect-payment", authStaff, async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
+});*/
+
+
+// Record cash collection
+router.post("/collect-payment", authStaff, async (req, res) => {
+  const { clientId, amount } = req.body;
+
+  try {
+    const client = await Client.findById(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const payment = new Payment({
+      clientId,
+      staffId: req.staffId,
+      amount,
+      method: "cash",
+      reference: `CASH-${Date.now()}`,
+    });
+
+    await payment.save();
+
+    // Update balance
+    client.balance = Number(client.balance) + Number(amount);
+    await client.save();
+
+    res.status(201).json({ message: "Payment recorded successfully", payment, });
+
+    // ✅ SEND EMAIL IMMEDIATELY
+    if (client.email) {
+      await sendEmail(
+        client.email,
+        "Cash Deposit Received - PaceSave",
+        `
+        <div style="font-family:Arial;padding:20px">
+          <h2>Deposit Confirmation</h2>
+          <p>Hello ${client.fullName},</p>
+
+          <p>We have received your cash payment.</p>
+
+          <div style="background:#f4f4f4;padding:15px;border-radius:8px">
+            <p><strong>Amount:</strong> ₦${Number(amount).toLocaleString()}</p>
+            <p><strong>New Balance:</strong> ₦${Number(client.balance).toLocaleString()}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+
+          <p style="margin-top:15px">
+            Thank you for saving with PaceSave 💙
+          </p>
+        </div>
+        `
+      );
+    }
+
+   /* res.status(201).json({
+      message: "Payment recorded and email sent successfully",
+      payment,
+    });
+*/
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
+
+
+
 
 // Get assigned clients
 router.get("/assigned-clients", authStaff, async (req, res) => {
@@ -431,6 +498,7 @@ router.post(
   }
 );
 */
+
 
 router.post(
   "/loan/:loanId/pay/cash",
