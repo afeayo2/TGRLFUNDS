@@ -203,7 +203,7 @@ router.post("/:withdrawalId/approve", authAdmin, async (req, res) => {
               The funds have been credited to your bank account.
             </p>
 
-            <p>Thank you for banking with PaceSave.</p>
+            <p>Thank you for using TrustGolden.</p>
           </div>
           `
         );

@@ -204,7 +204,7 @@ router.post("/collect-payment", authStaff, async (req, res) => {
           </div>
 
           <p style="margin-top:15px">
-            Thank you for saving with PaceSave 💙
+            Thank you for using with TrustGolden 💙
           </p>
         </div>
         `
