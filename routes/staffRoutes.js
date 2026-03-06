@@ -189,7 +189,7 @@ router.post("/collect-payment", authStaff, async (req, res) => {
     if (client.email) {
       await sendEmail(
         client.email,
-        "Cash Deposit Received - PaceSave",
+        "Cash Deposit Received - TrustGolden",
         `
         <div style="font-family:Arial;padding:20px">
           <h2>Deposit Confirmation</h2>

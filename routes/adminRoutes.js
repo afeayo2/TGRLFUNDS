@@ -279,6 +279,41 @@ router.patch("/client/:id/assign", authAdmin, async (req, res) => {
   }
 });
 
+
+router.get("/staff-onboarded", authAdmin, async (req, res) => {
+  try {
+
+    const { staffId, date } = req.query;
+
+    if (!staffId || !date) {
+      return res.status(400).json({
+        message: "staffId and date are required"
+      });
+    }
+
+    const start = new Date(date);
+    start.setHours(0,0,0,0);
+
+    const end = new Date(date);
+    end.setHours(23,59,59,999);
+
+    const clients = await Client.find({
+      staff: staffId,
+      createdAt: { $gte: start, $lte: end }
+    })
+    .select("fullName phone email balance createdAt");
+
+    res.json({
+      totalClients: clients.length,
+      clients
+    });
+
+  } catch (error) {
+    console.error("STAFF ONBOARDED ERROR:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // ========================
 // 4. STAFF MANAGEMENT
 // ========================
