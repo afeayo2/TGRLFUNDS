@@ -448,4 +448,96 @@ router.get("/payments/client-history", authICT, async (req, res) => {
   }
 });
 
+
+/**
+ * =========================
+ * UPDATE ICT PROFILE
+ * =========================
+ */
+router.put("/update-profile", authICT, async (req, res) => {
+  try {
+    const { fullName, email } = req.body;
+
+    const ictId = req.ict.id;
+
+    // Check if email already exists
+    if (email) {
+      const emailExists = await ICTStaff.findOne({
+        email,
+        _id: { $ne: ictId }
+      });
+
+      if (emailExists) {
+        return res.status(400).json({ message: "Email already in use" });
+      }
+    }
+
+    const updated = await ICTStaff.findByIdAndUpdate(
+      ictId,
+      {
+        ...(fullName && { fullName }),
+        ...(email && { email })
+      },
+      { new: true }
+    ).select("-password");
+
+    res.json({
+      message: "Profile updated successfully",
+      staff: updated
+    });
+
+  } catch (err) {
+    console.error("ICT update profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+/**
+ * =========================
+ * UPDATE CLIENT (ICT)
+ * =========================
+ */
+router.put("/clients/:id", authICT, async (req, res) => {
+  try {
+    const { fullName, email } = req.body;
+
+    // Check email duplication
+    if (email) {
+      const emailExists = await Client.findOne({
+        email,
+        _id: { $ne: req.params.id }
+      });
+
+      if (emailExists) {
+        return res.status(400).json({ message: "Email already used by another client" });
+      }
+    }
+
+    const updatedClient = await Client.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...(fullName && { fullName }),
+        ...(email && { email })
+      },
+      { new: true }
+    ).select("-password -pin");
+
+    if (!updatedClient) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    res.json({
+      message: "Client updated successfully",
+      client: updatedClient
+    });
+
+  } catch (err) {
+    console.error("Client update error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
 module.exports = router;

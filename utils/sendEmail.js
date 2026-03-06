@@ -1,10 +1,9 @@
-
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   host: "smtp.us.appsuite.cloud",
-  port: 465,
-  secure: true, // Use SSL for port 465
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -13,21 +12,21 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    await transporter.sendMail({
-      from: `"TrustGolden" ${process.env.EMAIL_USER}`,
+    const info = await transporter.sendMail({
+      from: `"TrustGolden" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
     });
+
+    console.log("✅ Email sent:", info.messageId);
   } catch (error) {
-    throw new Error("Error sending mail");
+    console.error("❌ EMAIL ERROR:", error);
+    throw error;
   }
 };
 
 module.exports = sendEmail;
-
-
-
 
 
 

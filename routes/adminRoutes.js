@@ -339,6 +339,66 @@ router.get("/payments", authAdmin, async (req, res) => {
   }
 });
 
+
+/**
+ * ==========================================
+ * STAFF COLLECTION LEDGER (ADMIN)
+ * ==========================================
+ */
+
+router.get("/staff-collections", authAdmin, async (req, res) => {
+  try {
+
+    const { staffId, startDate, endDate } = req.query;
+
+    if (!staffId) {
+      return res.status(400).json({ message: "Staff ID is required" });
+    }
+
+    let filter = { staffId };
+
+    // Date filtering
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) filter.createdAt.$lte = new Date(endDate + "T23:59:59");
+    }
+
+    const payments = await Payment.find(filter)
+      .populate("clientId", "fullName phone")
+      .populate("staffId", "fullName")
+      .sort({ createdAt: -1 });
+
+    let grandTotal = 0;
+
+    const ledger = payments.map(p => {
+
+      grandTotal += p.amount;
+
+      return {
+        clientName: p.clientId?.fullName || "Unknown",
+        phone: p.clientId?.phone || "-",
+        amount: p.amount,
+        method: p.method,
+        staff: p.staffId?.fullName,
+        date: p.createdAt.toISOString().split("T")[0],
+        time: p.createdAt.toTimeString().split(" ")[0]
+      };
+    });
+
+    res.json({
+      staff: payments[0]?.staffId?.fullName || "Unknown",
+      totalTransactions: payments.length,
+      grandTotal,
+      payments: ledger
+    });
+
+  } catch (err) {
+    console.error("Staff collection ledger error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/withdrawals", authAdmin, async (req, res) => {
   try {
     const clients = await Client.find({}, "fullName phone withdrawals");
