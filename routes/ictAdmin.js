@@ -38,6 +38,7 @@ router.get("/dashboard", authICT, async (req, res) => {
  * VIEW ALL CLIENT DATA
  * =========================
  */
+/*
 router.get("/clients", authICT, async (req, res) => {
   try {
     const clients = await Client.find()
@@ -49,6 +50,53 @@ router.get("/clients", authICT, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+*/
+
+/**
+ * =========================
+ * GET CLIENTS (PAGINATION + SEARCH)
+ * =========================
+ */
+router.get("/clients", authICT, async (req, res) => {
+  try {
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+
+    const query = {};
+
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const total = await Client.countDocuments(query);
+
+    const clients = await Client.find(query)
+      .select("-password -pin")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({
+      clients,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+
+  } catch (err) {
+    console.error("Fetch clients error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 /**
  * =========================
