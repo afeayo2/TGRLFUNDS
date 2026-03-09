@@ -281,27 +281,38 @@ router.patch("/client/:id/assign", authAdmin, async (req, res) => {
 
 
 router.get("/staff-onboarded", authAdmin, async (req, res) => {
+
   try {
 
-    const { staffId, date } = req.query;
+    const { staffId, startDate, endDate } = req.query;
 
-    if (!staffId || !date) {
+    if (!staffId) {
       return res.status(400).json({
-        message: "staffId and date are required"
+        message: "staffId is required"
       });
     }
 
-    const start = new Date(date);
-    start.setHours(0,0,0,0);
+    const filter = { staff: staffId };
 
-    const end = new Date(date);
-    end.setHours(23,59,59,999);
+    if (startDate || endDate) {
 
-    const clients = await Client.find({
-      staff: staffId,
-      createdAt: { $gte: start, $lte: end }
-    })
-    .select("fullName phone email balance createdAt");
+      filter.createdAt = {};
+
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23,59,59,999);
+        filter.createdAt.$lte = end;
+      }
+
+    }
+
+    const clients = await Client.find(filter)
+      .select("fullName phone email balance createdAt")
+      .sort({ createdAt: -1 });
 
     res.json({
       totalClients: clients.length,
@@ -309,9 +320,16 @@ router.get("/staff-onboarded", authAdmin, async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("STAFF ONBOARDED ERROR:", error);
-    res.status(500).json({ message: "Server error" });
+
+    res.status(500).json({
+      message: "Server error",
+      clients: []
+    });
+
   }
+
 });
 
 // ========================
