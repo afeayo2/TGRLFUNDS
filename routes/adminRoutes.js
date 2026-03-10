@@ -292,7 +292,7 @@ router.get("/staff-onboarded", authAdmin, async (req, res) => {
       });
     }
 
-    const filter = { staff: staffId };
+    const filter = { onboardedBy: staffId };
 
     if (startDate || endDate) {
 
@@ -331,6 +331,7 @@ router.get("/staff-onboarded", authAdmin, async (req, res) => {
   }
 
 });
+
 
 // ========================
 // 4. STAFF MANAGEMENT

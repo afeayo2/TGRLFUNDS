@@ -1,6 +1,56 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
+  host: "mail.trustgolden@topteck.com.ng", // your cPanel mail server
+  port: 465,
+  secure: true, // true for 465
+  auth: {
+    user: process.env.EMAIL_USER, // e.g info@trustgolden.com
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+const sendEmail = async ({ to, subject, html }) => {
+  try {
+
+    const info = await transporter.sendMail({
+      from: `"TrustGolden" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+
+    console.log("✅ Email sent:", info.messageId);
+
+  } catch (error) {
+    console.error("❌ EMAIL ERROR:", error);
+    throw error;
+  }
+};
+
+module.exports = sendEmail;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+const nodemailer = require("nodemailer");
+
+const transporter = nodemailer.createTransport({
   host: "smtp.us.appsuite.cloud",
   port: 587,
   secure: false,

@@ -750,8 +750,70 @@ router.get("/loan-defaulters", authStaff, async (req, res) => {
 });
 
 
-
 router.get("/installments-due", authStaff, async (req, res) => {
+  try {
+    const staffId = req.staffId;
+
+    const today = new Date();
+
+    const startOfToday = new Date(today);
+    startOfToday.setHours(0,0,0,0);
+
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23,59,59,999);
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+
+    const startOfMonth = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      1
+    );
+
+    const loans = await Loan.find({
+      staffId,
+      status: { $in: ["active", "unpaid"] }
+    });
+
+    let todayDue = 0;
+    let weekDue = 0;
+    let monthDue = 0;
+
+    loans.forEach(loan => {
+      loan.installments.forEach(inst => {
+        if (inst.status !== "unpaid") return;
+
+        const due = new Date(inst.dueDate);
+
+        if (due >= startOfToday && due <= endOfToday) {
+          todayDue += inst.amount;
+        }
+
+        if (due >= startOfWeek) {
+          weekDue += inst.amount;
+        }
+
+        if (due >= startOfMonth) {
+          monthDue += inst.amount;
+        }
+      });
+    });
+
+    res.json({
+      todayDue,
+      weekDue,
+      monthDue
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load installment dues" });
+  }
+});
+
+
+/*router.get("/installments-due", authStaff, async (req, res) => {
   try {
     const staffId = req.staff._id;
     const today = new Date();
@@ -807,6 +869,77 @@ router.get("/installments-due", authStaff, async (req, res) => {
     res.status(500).json({ message: "Failed to load installment dues" });
   }
 });
+*/
+
+router.get("/today-visits", authStaff, async (req, res) => {
+  try {
+
+    const { type = "all", page = 1, limit = 10 } = req.query;
+
+    const today = new Date();
+    const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfMonth = today.getDate().toString();
+
+    const skip = (page - 1) * limit;
+
+    const clients = await Client.find({
+      staffId: req.staffId
+    }).select("fullName phone address savings balance");
+
+    let visits = [];
+
+    clients.forEach(client => {
+
+      const savingsType = client.savings.type;
+      const savingsDay = client.savings.days;
+
+      // DAILY
+      if (
+        (type === "daily" || type === "all") &&
+        savingsType === "Daily"
+      ) {
+        visits.push(client);
+      }
+
+      // WEEKLY
+      if (
+        (type === "weekly" || type === "all") &&
+        savingsType === "Weekly" &&
+        savingsDay === dayName
+      ) {
+        visits.push(client);
+      }
+
+      // MONTHLY
+      if (
+        (type === "monthly" || type === "all") &&
+        savingsType === "Monthly" &&
+        savingsDay === dayOfMonth
+      ) {
+        visits.push(client);
+      }
+
+    });
+
+    const total = visits.length;
+
+    const paginated = visits.slice(skip, skip + Number(limit));
+
+    res.json({
+      date: today,
+      filter: type,
+      page: Number(page),
+      totalClients: total,
+      totalPages: Math.ceil(total / limit),
+      clients: paginated
+    });
+
+  } catch (error) {
+    console.error("TODAY VISITS ERROR:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 
 module.exports = router;
