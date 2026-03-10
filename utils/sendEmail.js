@@ -1,23 +1,23 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "mail.trustgolden@topteck.com.ng", // your cPanel mail server
+  host: "mail.topteck.com.ng", // SMTP server
   port: 465,
-  secure: true, // true for 465
+  secure: true,
   auth: {
-    user: process.env.EMAIL_USER, // e.g info@trustgolden.com
-    pass: process.env.EMAIL_PASS,
-  },
+    user: "trustgolden@topteck.com.ng", // email address
+    pass: process.env.EMAIL_PASS
+  }
 });
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
 
     const info = await transporter.sendMail({
-      from: `"TrustGolden" <${process.env.EMAIL_USER}>`,
+      from: '"TrustGolden" <trustgolden@topteck.com.ng>',
       to,
       subject,
-      html,
+      html
     });
 
     console.log("✅ Email sent:", info.messageId);
@@ -29,8 +29,6 @@ const sendEmail = async ({ to, subject, html }) => {
 };
 
 module.exports = sendEmail;
-
-
 
 
 
