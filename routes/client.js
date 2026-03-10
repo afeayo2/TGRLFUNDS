@@ -300,7 +300,10 @@ router.get("/verify-payment", async (req, res) => {
 */
 router.get("/verify-payment", async (req, res) => {
   const { reference } = req.query;
-  if (!reference) return res.status(400).send("Missing reference");
+
+  if (!reference) {
+    return res.status(400).send("Missing reference");
+  }
 
   try {
     const response = await axios.get(
@@ -319,16 +322,23 @@ router.get("/verify-payment", async (req, res) => {
     }
 
     const clientId = data.metadata?.clientId;
-    const totalPaid = data.amount / 100;
-    const originalAmount = data.metadata?.originalAmount;
-    const charge = data.metadata?.charge;
+
+    const totalPaid = Number(data.amount) / 100;
+
+    const originalAmount = Number(data.metadata?.originalAmount || totalPaid);
+
+    const charge = Number(data.metadata?.charge || 0);
 
     const client = await Client.findById(clientId);
-    if (!client) return res.status(404).send("Client not found");
+
+    if (!client) {
+      return res.status(404).send("Client not found");
+    }
 
     const exists = await Payment.findOne({ reference });
 
     if (!exists) {
+
       const payment = new Payment({
         clientId,
         amount: originalAmount,
@@ -341,12 +351,13 @@ router.get("/verify-payment", async (req, res) => {
       await payment.save();
 
       client.balance =
-        Number(client.balance || 0) + Number(originalAmount);
+        Number(client.balance || 0) + originalAmount;
 
       await client.save();
 
-      // ✅ SEND PAYMENT EMAIL HERE
-      if (client.email) {
+      // ✅ SEND PAYMENT EMAIL
+    
+ if (client.email) {
         await sendEmail(
           client.email,
           "Payment Successful - TrustGolden",
@@ -405,7 +416,6 @@ router.get("/verify-payment", async (req, res) => {
     res.status(500).send("Payment verification failed");
   }
 });
-
 
 
 // POST: Withdrawal Request (CLIENT)
@@ -502,10 +512,10 @@ router.post("/forgot-password", async (req, res) => {
     await client.save();
 
     // Send OTP to REGISTERED EMAIL automatically
-    await sendEmail(
-      client.email,
-      "Password Reset OTP - TrustGolden",
-      `
+    await sendEmail({
+      to: client.email,
+      subject: "Password Reset OTP - TrustGolden",
+      html: `
       <div style="font-family:Arial;padding:20px">
         <h2>Password Reset Request</h2>
         <p>Hello ${client.fullName},</p>
@@ -515,10 +525,6 @@ router.post("/forgot-password", async (req, res) => {
         <p>If you did not request this, ignore this email.</p>
       </div>
       `
-    );
-
-    res.json({
-      message: "OTP sent to your registered email"
     });
 
   } catch (err) {
