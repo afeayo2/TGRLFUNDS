@@ -522,9 +522,13 @@ router.post("/forgot-password", async (req, res) => {
         <p>Your OTP is:</p>
         <h1 style="letter-spacing:5px">${otp}</h1>
         <p>This OTP expires in 10 minutes.</p>
-        <p>If you did not request this, ignore this email.</p>
       </div>
       `
+    });
+
+    
+    res.json({
+      message: "OTP sent successfully to your email"
     });
 
   } catch (err) {
@@ -534,6 +538,45 @@ router.post("/forgot-password", async (req, res) => {
 });
 
 
+router.post("/verify-otp", async (req, res) => {
+  try {
+
+    const { phone, otp } = req.body;
+
+    const client = await Client.findOne({ phone });
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    if (!client.resetOtp || !client.resetOtpExpires) {
+      return res.status(400).json({ message: "No OTP request found" });
+    }
+
+    if (Date.now() > client.resetOtpExpires) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    const isMatch = await bcrypt.compare(otp, client.resetOtp);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    res.json({
+      message: "OTP verified successfully"
+    });
+
+  } catch (err) {
+
+    console.error("VERIFY OTP ERROR:", err);
+
+    res.status(500).json({
+      message: "Server error"
+    });
+
+  }
+});
 // ===========================
 // VERIFY OTP & RESET PASSWORD
 // ===========================
