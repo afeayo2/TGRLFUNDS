@@ -192,7 +192,7 @@ router.post("/pay", verifyJWT, async (req, res) => {
     const rawAmount = Number(amount);
 
     // Paystack charge
-    let charge = rawAmount * 0.015 + 100;
+    let charge = rawAmount * 0.015 + 101;
     if (charge > 2000) charge = 2000;
 
     const totalAmount = rawAmount + charge;

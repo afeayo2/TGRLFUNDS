@@ -437,5 +437,51 @@ router.get("/pay/card/verify", async (req, res) => {
 });
 
 
+router.post("/collect", async (req, res) => {
+  try {
 
+    const { loanId, amount, staffId } = req.body;
+
+    const loan = await Loan.findById(loanId);
+
+    if (!loan) {
+      return res.status(404).json({ message: "Loan not found" });
+    }
+
+    loan.amountPaid += amount;
+    loan.balance = loan.loanAmount - loan.amountPaid;
+
+    if (loan.balance <= 0) {
+      loan.status = "paid";
+    }
+
+    await loan.save();
+
+    await LoanCollection.create({
+      loanId,
+      amount,
+      collectedBy: staffId,
+      clientName: loan.clientName,
+      phone: loan.phone
+    });
+
+    res.json({
+      message: "Collection recorded",
+      balance: loan.balance
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Collection failed" });
+  }
+});
+
+// GET STAFF LIST
+router.get("/admin/staff-list", async (req, res) => {
+  try {
+    const staff = await Staff.find().select("_id name");
+    res.json(staff);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch staff" });
+  }
+});
 module.exports = router;

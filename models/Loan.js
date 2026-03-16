@@ -27,6 +27,34 @@ const loanSchema = new mongoose.Schema(
       required: true
     },
 
+    /* ================= MANUAL LOAN SUPPORT ================= */
+
+    loanSource: {
+      type: String,
+      enum: ["app", "manual"],
+      default: "app"
+    },
+
+    clientName: String,
+    phoneNumber: String,
+
+    repaymentPlan: {
+      type: String,
+      enum: ["daily", "weekly", "monthly"]
+    },
+
+    dateDisbursed: Date,
+
+    amountPaid: {
+      type: Number,
+      default: 0
+    },
+
+    balance: Number,
+
+    nextDueDate: Date,
+
+    rmResponsible: String,
     /* ================= LOAN DETAILS ================= */
     requestedAmount: {
       type: Number,
