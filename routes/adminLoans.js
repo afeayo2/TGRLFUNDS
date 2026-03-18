@@ -326,4 +326,137 @@ router.get("/:loanId/pull-credit", async (req, res) => {
 });
 */
 
+
+// ===============================
+// CREATE MANUAL LOAN + INSTALLMENTS
+// ===============================
+router.post("/manual-loan", authAdmin, async (req, res) => {
+  try {
+
+    const {
+      clientId,
+      staffId,
+      amount,
+      durationWeeks,
+      startDate
+    } = req.body;
+
+    if (!clientId || !staffId || !amount || !durationWeeks) {
+      return res.status(400).json({
+        message: "Missing required fields"
+      });
+    }
+
+    const weeklyAmount = Math.ceil(amount / durationWeeks);
+
+    const installments = [];
+
+    const start = new Date(startDate || Date.now());
+
+    for (let i = 1; i <= durationWeeks; i++) {
+
+      const dueDate = new Date(start);
+      dueDate.setDate(start.getDate() + i * 7);
+
+      installments.push({
+        week: i,
+        amount: weeklyAmount,
+        dueDate,
+        day: dueDate.toLocaleDateString("en-US", { weekday: "long" }),
+        status: "unpaid"
+      });
+    }
+
+    const loan = new Loan({
+      clientId,
+      staffId,
+
+      requestedAmount: amount,
+      approvedAmount: amount,
+
+      totalRepayment: amount,
+      durationInMonths: durationWeeks / 4,
+
+      installments,
+
+      status: "active",
+
+      loanSource: "manual"
+    });
+
+    await loan.save();
+
+    res.json({
+      message: "Manual loan created successfully",
+      loan
+    });
+
+  } catch (err) {
+
+    console.error("Manual loan creation error:", err);
+
+    res.status(500).json({
+      message: "Failed to create loan"
+    });
+
+  }
+});
+
+
+router.get("/collections/today", authAdmin, async (req, res) => {
+  try {
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const loans = await Loan.find({
+      status: { $in: ["approved", "active"] }
+    })
+    .populate("clientId", "fullName phone")
+    .populate("staffId", "fullName");
+
+    const collections = [];
+
+    loans.forEach(loan => {
+
+      loan.installments.forEach(inst => {
+
+        if (
+          inst.status === "unpaid" &&
+          inst.dueDate >= today &&
+          inst.dueDate < tomorrow
+        ) {
+
+          collections.push({
+            loanId: loan._id,
+            client: loan.clientId.fullName,
+            phone: loan.clientId.phone,
+            amount: inst.amount,
+            dueDate: inst.dueDate,
+            staff: loan.staffId.fullName,
+            staffId: loan.staffId._id
+          });
+
+        }
+
+      });
+
+    });
+
+    res.json(collections);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      message: "Failed to load today's collections"
+    });
+
+  }
+});
+
 module.exports = router;
