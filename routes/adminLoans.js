@@ -403,6 +403,7 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
 });
 
 
+
 router.get("/collections/today", authAdmin, async (req, res) => {
   try {
 
@@ -458,5 +459,6 @@ router.get("/collections/today", authAdmin, async (req, res) => {
 
   }
 });
+
 
 module.exports = router;
