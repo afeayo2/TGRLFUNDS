@@ -430,8 +430,8 @@ router.get("/staff-collections", authAdmin, async (req, res) => {
       grandTotal += p.amount;
 
       return {
-        clientName: p.clientId?.fullName || "Unknown",
-        phone: p.clientId?.phone || "-",
+        clientName: p.clientId?.fullName || p.clientName || "Unknown",
+          phoneNumber: p.clientId?.phone || p.phoneNumber || "-",
         amount: p.amount,
         method: p.method,
         staff: p.staffId?.fullName,
@@ -452,6 +452,7 @@ router.get("/staff-collections", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 router.get("/withdrawals", authAdmin, async (req, res) => {
   try {

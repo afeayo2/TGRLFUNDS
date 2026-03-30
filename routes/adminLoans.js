@@ -436,8 +436,8 @@ router.get("/collections/today", authAdmin, async (req, res) => {
 
           collections.push({
             loanId: loan._id,
-            client: loan.clientId.fullName,
-            phone: loan.clientId.phone,
+            client: loan.clientId?.fullName || loan.clientName,
+            phone: loan.clientId?.phone || loan.phoneNumber,
             amount: inst.amount,
             dueDate: inst.dueDate,
             staff: loan.staffId.fullName,
