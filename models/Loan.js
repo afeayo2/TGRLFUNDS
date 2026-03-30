@@ -15,10 +15,12 @@ const installmentSchema = new mongoose.Schema({
 const loanSchema = new mongoose.Schema(
   {
     /* ================= CLIENT & STAFF ================= */
+    clientName: String,
+    phoneNumber: String,
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
-      required: true
+      required: false
     },
 
     staffId: {

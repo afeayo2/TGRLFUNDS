@@ -349,16 +349,6 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
       });
     }
 
-    // ✅ FIND OR CREATE CLIENT
-    let client = await Client.findOne({ phone });
-
-    if (!client) {
-      client = await Client.create({
-        fullName,
-        phone
-      });
-    }
-
     // ✅ INSTALLMENTS
     const weeklyAmount = Math.ceil(Number(amount) / Number(durationWeeks));
     const installments = [];
@@ -378,9 +368,10 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
       });
     }
 
-    // ✅ CREATE LOAN
+    // ✅ CREATE LOAN (NO CLIENT MODEL USED)
     const loan = new Loan({
-      clientId: client._id,
+      // ❌ REMOVE clientId completely
+
       staffId,
 
       requestedAmount: Number(amount),
@@ -394,7 +385,7 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
       status: "active",
       loanSource: "manual",
 
-      // 🔥 OPTIONAL: SAVE NAME DIRECTLY TOO
+      // ✅ STORE DIRECTLY
       clientName: fullName,
       phoneNumber: phone
     });
@@ -414,7 +405,6 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
     });
   }
 });
-
 
 
 router.get("/collections/today", authAdmin, async (req, res) => {
