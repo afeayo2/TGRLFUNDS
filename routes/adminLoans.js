@@ -334,27 +334,38 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
   try {
 
     const {
-      clientId,
+      fullName,
+      phone,
       staffId,
       amount,
       durationWeeks,
       startDate
     } = req.body;
 
-    if (!clientId || !staffId || !amount || !durationWeeks) {
+    // ✅ VALIDATION
+    if (!fullName || !phone || !staffId || !amount || !durationWeeks) {
       return res.status(400).json({
         message: "Missing required fields"
       });
     }
 
-    const weeklyAmount = Math.ceil(amount / durationWeeks);
+    // ✅ FIND OR CREATE CLIENT
+    let client = await Client.findOne({ phone });
 
+    if (!client) {
+      client = await Client.create({
+        fullName,
+        phone
+      });
+    }
+
+    // ✅ INSTALLMENTS
+    const weeklyAmount = Math.ceil(Number(amount) / Number(durationWeeks));
     const installments = [];
 
     const start = new Date(startDate || Date.now());
 
     for (let i = 1; i <= durationWeeks; i++) {
-
       const dueDate = new Date(start);
       dueDate.setDate(start.getDate() + i * 7);
 
@@ -367,21 +378,25 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
       });
     }
 
+    // ✅ CREATE LOAN
     const loan = new Loan({
-      clientId,
+      clientId: client._id,
       staffId,
 
-      requestedAmount: amount,
-      approvedAmount: amount,
+      requestedAmount: Number(amount),
+      approvedAmount: Number(amount),
 
-      totalRepayment: amount,
+      totalRepayment: Number(amount),
       durationInMonths: durationWeeks / 4,
 
       installments,
 
       status: "active",
+      loanSource: "manual",
 
-      loanSource: "manual"
+      // 🔥 OPTIONAL: SAVE NAME DIRECTLY TOO
+      clientName: fullName,
+      phoneNumber: phone
     });
 
     await loan.save();
@@ -392,13 +407,11 @@ router.post("/manual-loan", authAdmin, async (req, res) => {
     });
 
   } catch (err) {
-
     console.error("Manual loan creation error:", err);
 
     res.status(500).json({
       message: "Failed to create loan"
     });
-
   }
 });
 

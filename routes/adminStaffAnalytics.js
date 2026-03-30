@@ -5,6 +5,8 @@ const Staff = require("../models/Staff");
 const authAdmin = require("../middleware/authAdmin");
 const ExcelJS = require("exceljs");
 
+
+
 router.get("/staff-loan-analytics", authAdmin, async (req, res) => {
   try {
     const staffs = await Staff.find({}, "fullName phone");
@@ -97,6 +99,8 @@ router.get("/staff-loan-analytics", authAdmin, async (req, res) => {
     res.status(500).json({ message: "Failed to load staff analytics" });
   }
 });
+
+
 
 router.get("/staff/:staffId/defaulters", authAdmin, async (req, res) => {
   try {
