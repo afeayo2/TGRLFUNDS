@@ -1,10 +1,18 @@
 const mongoose = require("mongoose");
 
 const loanPaymentSchema = new mongoose.Schema({
-  loanId: { type: mongoose.Schema.Types.ObjectId, ref: "Loan", required: true },
-  clientId: { type: mongoose.Schema.Types.ObjectId, ref: "Client", required: true },
-  staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
 
+  
+  loanId: { type: mongoose.Schema.Types.ObjectId, ref: "Loan", required: true },
+  //clientId: { type: mongoose.Schema.Types.ObjectId, ref: "Client", required: true },
+  clientId: { 
+  type: mongoose.Schema.Types.ObjectId, 
+  ref: "Client",
+  default: null // ✅ allow manual loans
+},
+clientName: String,
+phoneNumber: String,
+  staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
   amount: Number,
   method: { type: String, enum: ["card", "cash"], required: true },
 

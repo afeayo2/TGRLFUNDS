@@ -499,7 +499,7 @@ router.post(
 );
 */
 
-
+/*
 router.post(
   "/loan/:loanId/pay/cash",
   authStaff,
@@ -558,7 +558,94 @@ router.post(
     }
   }
 );
+*/
 
+router.post(
+  "/loan/:loanId/pay/cash",
+  authStaff,
+  async (req, res) => {
+    try {
+      const { loanId } = req.params;
+      const { amount } = req.body; // ✅ NEW INPUT
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      const loan = await Loan.findById(loanId).populate("clientId");
+
+      if (!loan) {
+        return res.status(404).json({ message: "Loan not found" });
+      }
+
+      let remainingAmount = Number(amount);
+
+      // ✅ SORT installments by week (important)
+      const installments = loan.installments.sort((a, b) => a.week - b.week);
+
+      for (let inst of installments) {
+        if (inst.status === "paid") continue;
+
+        // If full payment covers installment
+        if (remainingAmount >= inst.amount) {
+          remainingAmount -= inst.amount;
+          inst.status = "paid";
+          inst.paidAt = new Date();
+        } else {
+          // ✅ PARTIAL PAYMENT
+          inst.amount -= remainingAmount; // reduce remaining installment
+          remainingAmount = 0;
+          break;
+        }
+      }
+
+      const reference = `LOAN-CASH-${Date.now()}`;
+      const hasClient = !!loan.clientId;
+
+      // ✅ Save inside loan
+      loan.payments.push({
+        amount,
+        method: "cash",
+        staffId: req.staffId,
+        clientId: hasClient ? loan.clientId : null,
+        clientName: hasClient ? undefined : loan.clientName,
+        reference,
+        paidBy: "staff"
+      });
+
+      // ✅ Save to Payment collection (VERY IMPORTANT for dashboard)
+      await Payment.create({
+        clientId: hasClient ? (loan.clientId._id || loan.clientId) : null,
+        clientName: hasClient ? undefined : loan.clientName,
+        staffId: req.staffId,
+        amount,
+        method: "loan-cash",
+        reference,
+        loanId: loan._id
+      });
+
+      // ✅ Close loan if all paid
+      if (loan.installments.every(i => i.status === "paid")) {
+        loan.status = "paid";
+      }
+
+      await loan.save();
+
+      res.json({
+        message: "Payment recorded successfully",
+        paidAmount: amount,
+        remainingAmount
+      });
+
+    } catch (err) {
+      console.error("LOAN PAYMENT ERROR:", err);
+      res.status(500).json({
+        message: "Failed to record loan payment",
+        error: err.message
+      });
+    }
+  }
+);
 
 /*
 // GET /api/staff/loan-schedule

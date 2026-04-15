@@ -15,13 +15,11 @@ const installmentSchema = new mongoose.Schema({
 const loanSchema = new mongoose.Schema(
   {
     /* ================= CLIENT & STAFF ================= */
-    clientName: String,
-    phoneNumber: String,
     clientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Client",
-      required: false
-    },
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Client",
+  default: null // ✅ allow manual loans
+},
 
     staffId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -121,29 +119,37 @@ const loanSchema = new mongoose.Schema(
 payments: [
   {
     amount: Number,
+
     method: {
       type: String,
       enum: ["card", "cash"]
     },
+
     installmentWeek: Number,
+
     staffId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Staff"
     },
+
+    // ✅ OPTIONAL NOW
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
-      required: true
+      default: null
     },
-    externalCreditReport: { type: Object },
-    externalCreditPulledAt: { type: Date },
 
-    
+    // ✅ FOR MANUAL LOANS
+    clientName: String,
+    phoneNumber: String,
+
     paidBy: {
       type: String,
       enum: ["client", "staff"]
     },
+
     reference: String,
+
     paidAt: {
       type: Date,
       default: Date.now

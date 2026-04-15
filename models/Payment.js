@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const paymentSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
   staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
+  clientName: String,
   amount: Number,
     charge:Number,
       totalPaid: Number,
