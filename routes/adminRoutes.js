@@ -30,10 +30,11 @@ router.get("/overview", authAdmin, async (req, res) => {
     const totalCollections = totalCollectionsAgg[0]?.total || 0;
 
     // Total withdrawals (sum of all client.withdrawals.amount)
-    const withdrawals = await Client.aggregate([
-      { $unwind: "$withdrawals" },
-      { $group: { _id: null, total: { $sum: "$withdrawals.amount" } } }
-    ]);
+   const withdrawals = await Client.aggregate([
+  { $unwind: "$withdrawals" },
+  { $match: { "withdrawals.status": "approved" } }, // ✅ FILTER
+  { $group: { _id: null, total: { $sum: "$withdrawals.amount" } } }
+]);
     const totalWithdrawals = withdrawals[0]?.total || 0;
 
     // Today's collections
@@ -270,7 +271,7 @@ router.patch("/client/:id/assign", authAdmin, async (req, res) => {
     const { staffId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(staffId))
       return res.status(400).json({ message: "Invalid staff ID" });
-
+o
     const updated = await Client.findByIdAndUpdate(req.params.id, { staffId }, { new: true });
     res.json(updated);
   } catch (err) {
